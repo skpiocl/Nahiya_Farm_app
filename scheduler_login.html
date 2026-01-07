@@ -3,143 +3,537 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Farm Media Controller</title>
+    <title>Farm Jukebox</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
     <style>
-        :root { --primary: #2563eb; --bg: #f1f5f9; --card: #ffffff; }
-        body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); padding: 15px; max-width: 500px; margin: auto; }
-        .card { background: var(--card); border-radius: 12px; padding: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 15px; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 20px; max-width: 600px; margin: auto; background: #f4f4f4; color: #333; }
+        .card { background: white; padding: 20px; margin-bottom: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
         
-        /* Now Playing HUD */
-        .hud { text-align: center; background: #1e293b; color: white; position: sticky; top: 0; z-index: 100; }
-        .song-title { color: #38bdf8; font-weight: bold; display: block; margin-bottom: 5px; height: 24px; overflow: hidden; }
-        .progress-container { background: #475569; border-radius: 10px; height: 6px; width: 100%; margin: 10px 0; cursor: pointer; }
-        .progress-bar { background: #38bdf8; height: 100%; width: 0%; border-radius: 10px; transition: width 0.3s; }
+        /* Header */
+        .header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .system-status { font-weight: bold; font-size: 0.9em; padding: 5px 12px; border-radius: 20px; background: #ddd; color: #666; display: flex; align-items: center; gap: 8px; }
+        .dot { height: 10px; width: 10px; background-color: #bbb; border-radius: 50%; display: inline-block; }
+        
+        .status-online { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .status-online .dot { background-color: #28a745; box-shadow: 0 0 5px #28a745; }
+        .status-offline { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .status-offline .dot { background-color: #dc3545; }
+
+        h2 { margin-top: 0; font-size: 1.2em; border-bottom: 2px solid #f0f0f0; padding-bottom: 10px; margin-bottom: 15px; }
+        
+        /* Now Playing Styles */
+        .now-playing-box { text-align: center; padding: 15px; background: #f8f9fa; border-radius: 8px; border: 1px solid #eee; }
+        .song-title { font-size: 1.2em; font-weight: bold; color: #007bff; margin-bottom: 5px; }
+        .song-status { font-size: 0.9em; color: #666; margin-bottom: 15px; }
         
         /* Controls */
-        .nav-controls { display: flex; justify-content: space-around; align-items: center; margin: 10px 0; }
-        .btn-nav { background: none; border: none; color: white; font-size: 1.5em; cursor: pointer; }
-        .btn-play { background: #2563eb; width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
-
-        /* Queue Dropdown */
-        .queue-box { display: none; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px; margin-top: 10px; text-align: left; max-height: 200px; overflow-y: auto; }
+        .control-row { display: flex; gap: 8px; justify-content: center; margin-top: 15px; flex-wrap: wrap; }
+        button { background: #007bff; color: white; border: none; cursor: pointer; font-weight: 600; padding: 12px; border-radius: 6px; flex: 1; transition: background 0.2s; font-size: 16px; min-width: 40px; }
+        button:hover { background: #0056b3; }
         
-        /* Library Table */
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        td { padding: 10px 5px; border-bottom: 1px solid #f1f5f9; cursor: pointer; }
-        .seq-col { width: 30px; color: #94a3b8; font-size: 0.8em; }
+        button.stop { background: #dc3545; flex-grow: 2; }
+        button.stop:hover { background: #c82333; }
+        
+        button.shuffle { background: #6c757d; }
+        button.shuffle.active { background: #e0a800; color: #000; } 
 
-        .yt-section input { width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ddd; box-sizing: border-box; }
-        .mode-row { display: flex; gap: 5px; margin-top: 10px; }
-        .mode-btn { flex: 1; padding: 5px; font-size: 0.75em; border-radius: 4px; border: 1px solid #ddd; background: #fff; cursor: pointer; }
-        .active-mode { background: #2563eb; color: white; border-color: #2563eb; }
+        button.control-btn { background: #17a2b8; flex: 1; font-size: 0.9em; padding: 10px 5px; }
+        button.control-btn:hover { background: #138496; }
+
+        /* Small Buttons */
+        button.btn-sm { padding: 6px 10px; font-size: 0.8em; width: auto; flex: none; border-radius: 4px; margin-left: 2px; }
+        button.play-now { background: #17a2b8; }
+        button.add-queue { background: #28a745; }
+        button.add-list { background: #ffc107; color: #333; }
+
+        /* Dropdowns & Inputs */
+        select, input[type=text] { width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 16px; background: #fff; }
+        
+        /* Volume Slider */
+        .volume-container { display: flex; align-items: center; gap: 10px; margin-top: 20px; margin-bottom: 20px; }
+        input[type=range] { flex: 1; }
+
+        /* Tables */
+        .library-table, .queue-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        .library-table td, .queue-table td { padding: 10px 5px; border-bottom: 1px solid #eee; vertical-align: middle; }
+        .library-table tr:last-child td { border-bottom: none; }
+        
+        /* Column widths */
+        .col-seq { width: 30px; text-align: center; color: #999; font-size: 0.8em; }
+        .col-actions { text-align: right; width: 110px; }
+        
+        .lib-desc { font-weight: 600; color: #333; font-size: 1em; }
+        .lib-file { font-size: 0.85em; color: #888; }
+        
+        /* Button Group for List Items */
+        .btn-group { display: flex; gap: 2px; justify-content: flex-end; }
+
+        #mqtt-debug { text-align: center; font-size: 0.8em; color: #999; margin-top: 20px; }
+        
+        /* Toast Notification */
+        #toast { visibility: hidden; min-width: 250px; background-color: #333; color: #fff; text-align: center; border-radius: 2px; padding: 16px; position: fixed; z-index: 1; left: 50%; bottom: 30px; transform: translateX(-50%); font-size: 17px; }
+        #toast.show { visibility: visible; -webkit-animation: fadein 0.5s, fadeout 0.5s 2.5s; animation: fadein 0.5s, fadeout 0.5s 2.5s; }
+        @-webkit-keyframes fadein { from {bottom: 0; opacity: 0;} to {bottom: 30px; opacity: 1;} }
+        @keyframes fadein { from {bottom: 0; opacity: 0;} to {bottom: 30px; opacity: 1;} }
+        @-webkit-keyframes fadeout { from {bottom: 30px; opacity: 1;} to {bottom: 0; opacity: 0;} }
+        @keyframes fadeout { from {bottom: 30px; opacity: 1;} to {bottom: 0; opacity: 0;} }
     </style>
 </head>
 <body>
 
-    <div class="card hud">
-        <span id="now-playing" class="song-title">Select a Song</span>
-        <div class="progress-container" onclick="handleSeek(event)">
-            <div id="progress-bar" class="progress-bar"></div>
-        </div>
-        <div style="display: flex; justify-content: space-between; font-size: 0.7em; color: #94a3b8;">
-            <span id="time-curr">00:00</span>
-            <span id="vol-pct">Volume: 100%</span>
-            <span id="time-total">00:00</span>
-        </div>
-
-        <div class="nav-controls">
-            <button class="btn-nav" onclick="sendMusicCmd('music_seek', {seconds: -15})">⏪</button>
-            <button class="btn-nav" onclick="sendMusicCmd('music_prev')">⏮</button>
-            <button class="btn-nav btn-play" onclick="sendMusicCmd('stop_music')">⏹</button>
-            <button class="btn-nav" onclick="sendMusicCmd('music_next')">⏭</button>
-            <button class="btn-nav" onclick="sendMusicCmd('music_seek', {seconds: 15})">⏩</button>
-        </div>
-    </div>
-
-    <div class="card yt-section">
-        <input type="text" id="yt-url" placeholder="Paste YouTube Link...">
-        <div class="mode-row">
-            <button class="mode-btn" style="background:#ef4444; color:white;" onclick="playYT(false)">Play Now</button>
-            <button class="mode-btn" style="background:#22c55e; color:white;" onclick="playYT(true)">+ Queue</button>
-        </div>
-        <div class="mode-row">
-            <button id="m-manual" class="mode-btn" onclick="setMode('manual')">Manual</button>
-            <button id="m-random" class="mode-btn" onclick="setMode('random')">Random</button>
-            <button id="m-seq" class="mode-btn" onclick="setMode('sequential')">Sequential</button>
+    <div class="header-row">
+        <h1 style="margin:0; font-size:1.5em;">🎵 Farm Jukebox</h1>
+        <div id="sysStatus" class="system-status">
+            <span class="dot"></span> <span id="sysText">Connecting...</span>
         </div>
     </div>
 
     <div class="card">
-        <button onclick="toggleQueue()" style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #ddd;">
-            View Queue (<span id="q-count">0</span> songs)
-        </button>
-        <div id="queue-list" class="queue-box"></div>
+        <h2>🔊 Now Playing</h2>
+        <div class="now-playing-box">
+            <div id="npTitle" class="song-title">Nothing Playing</div>
+            <div id="npStatus" class="song-status">System Ready</div>
+            
+            <div class="volume-container">
+                <span>🔈</span>
+                <input type="range" id="volSlider" min="0" max="100" value="100" onchange="setVolume(this.value)">
+                <span>🔊</span>
+            </div>
+
+            <div class="control-row">
+                <button class="control-btn" onclick="skipSong('prev')">|&lt;&lt; Prev</button>
+                <button class="control-btn" onclick="seekTime(-20)">&lt;&lt; -20s</button>
+                <button class="control-btn" onclick="seekTime(20)">+20s &gt;&gt;</button>
+                <button class="control-btn" onclick="skipSong('next')">Next &gt;&gt;|</button>
+            </div>
+
+            <div class="control-row">
+                <button class="shuffle" id="btnShuffle" onclick="toggleRandomMode()">🔀 Shuffle OFF</button>
+                <button class="stop" onclick="stopMusic()">⏹ STOP ALL</button>
+            </div>
+        </div>
     </div>
 
     <div class="card">
-        <table id="lib-table">
-            <thead><tr style="text-align: left; font-size: 0.8em; color: #64748b;"><th>#</th><th>Description</th></tr></thead>
-            <tbody></tbody>
+        <div class="header-row" style="margin-bottom:10px;">
+            <h2>⏳ Upcoming Queue</h2>
+            <button onclick="clearQueue()" class="btn-sm" style="background:transparent; color:#dc3545; border:1px solid #dc3545;">Clear</button>
+        </div>
+        <div style="max-height: 200px; overflow-y: auto;">
+            <table class="queue-table">
+                <tbody id="queueListBody">
+                    <tr><td style="text-align:center; color:#999; font-size:0.9em;">Queue is empty</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>📂 Playlists</h2>
+        
+        <label style="font-size:0.9em; font-weight:600; color:#555;">Select Playlist:</label>
+        <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+            <select id="playlistSelect">
+                <option value="" disabled selected>Loading...</option>
+            </select>
+            <button onclick="playSelectedPlaylist()" style="flex: 0 0 80px;">▶ Play</button>
+        </div>
+
+        <details>
+            <summary style="cursor:pointer; color:#007bff; font-size:0.9em;">➕ Create New Playlist</summary>
+            <div style="margin-top:10px; padding:10px; background:#f9f9f9; border-radius:6px;">
+                <input type="text" id="newPlaylistName" placeholder="New Playlist Name">
+                <button class="btn-sm" style="width:100%;" onclick="createPlaylist()">Create Playlist</button>
+            </div>
+        </details>
+    </div>
+
+    <div class="card">
+        <div class="header-row" style="margin-bottom:10px;">
+            <h2>📚 Music Library</h2>
+            <button onclick="getLibrary()" class="btn-sm" style="background:transparent; color:#007bff; border:1px solid #007bff;">↻</button>
+        </div>
+        
+        <div style="display:flex; gap:10px; margin-bottom:15px;">
+            <button onclick="playAllLibrary(false)" style="background:#6f42c1; padding:10px;">▶ Play All (Seq)</button>
+            <button onclick="playAllLibrary(true)" style="background:#e83e8c; padding:10px;">🔀 Play All (Mix)</button>
+        </div>
+
+        <div style="background:#fff3cd; padding:10px; border-radius:6px; margin-bottom:15px; border:1px solid #ffeeba;">
+            <label style="font-size:0.85em; font-weight:bold; color:#856404;">Add to playlist:</label>
+            <select id="targetPlaylistSelect" style="margin-bottom:0;">
+                <option value="">(Select a Playlist first)</option>
+            </select>
+        </div>
+
+        <details style="margin-bottom:15px; background:#f0f8ff; padding:10px; border-radius:8px; border:1px solid #cce5ff;">
+            <summary style="cursor:pointer; font-weight:600; color:#004085;">➕ Register New File</summary>
+            <div style="margin-top:10px;">
+                <input type="text" id="newFilename" placeholder="Filename (e.g. song.mp3)">
+                <input type="text" id="newDesc" placeholder="Description">
+                <button class="add-queue" style="width:100%" onclick="addToLibrary()">Save</button>
+            </div>
+        </details>
+
+        <table class="library-table">
+            <tbody id="libraryListBody">
+                <tr><td colspan="3" style="text-align:center; padding:20px; color:#999;">Waiting for data...</td></tr>
+            </tbody>
         </table>
     </div>
 
+    <div id="mqtt-debug">MQTT Status: Disconnected</div>
+    <div id="toast">Command Sent</div>
+
     <script>
-        let client;
-        function connect() {
-            client = new Paho.MQTT.Client("broker.emqx.io", Number(8083), "web_" + Math.random());
-            client.onMessageArrived = onMessage;
-            client.connect({ onSuccess: () => { 
-                client.subscribe("farm/status");
-                client.subscribe("farm/music/queue_detail");
-                sendMusicCmd("get_status");
-                sendMusicCmd("get_queue_detail");
-            }, useSSL: true });
-        }
+        // --- CONFIGURATION ---
+        const MQTT_HOST = "t7ef11fa.ala.asia-southeast1.emqxsl.com";
+        const MQTT_PORT = 8084;
+        const MQTT_CLIENT_ID = "web_jukebox_" + Math.random().toString(16).substr(2, 8);
+        const MQTT_USER = "skp"; 
+        const MQTT_PASS = "Bubble@10"; 
+        
+        const TOPIC_CMD = "farm/commands";
+        const TOPIC_STATUS = "farm/status";
+        const TOPIC_LIB = "farm/status/library";
+        const TOPIC_PLAYLISTS = "farm/status/playlists";
+        const TOPIC_QUEUE = "farm/status/queue"; // Feature 4: New topic
 
-        function onMessage(msg) {
-            const data = JSON.parse(msg.payloadString);
+        // --- STATE ---
+        let lastHeartbeat = 0;
+        let randomMode = false;
+        let localLibrary = []; // Cache library to implement "Play All"
+        const client = new Paho.MQTT.Client(MQTT_HOST, Number(MQTT_PORT), MQTT_CLIENT_ID);
+
+        // --- MQTT CONNECTION ---
+        client.onConnectionLost = (obj) => { 
+            document.getElementById("mqtt-debug").innerText = "Connection Lost";
+            setSystemStatus("offline");
+        };
+
+        client.onMessageArrived = (msg) => {
+            const payload = JSON.parse(msg.payloadString);
             
-            if (msg.destinationName === "farm/status" && data.music) {
-                const m = data.music;
-                document.getElementById("now-playing").innerText = m.current_song || "Stopped";
-                document.getElementById("progress-bar").style.width = m.progress_pct + "%";
-                document.getElementById("vol-pct").innerText = `Volume: ${m.volume}%`;
-                document.getElementById("q-count").innerText = m.queue_len;
+            if (msg.destinationName === TOPIC_STATUS) {
+                lastHeartbeat = Date.now();
+                setSystemStatus("online");
+                updateDashboard(payload);
+            } 
+            else if (msg.destinationName === TOPIC_LIB) {
+                localLibrary = payload; // Save to local variable
+                renderLibrary(payload);
+            }
+            else if (msg.destinationName === TOPIC_PLAYLISTS) {
+                renderPlaylists(payload);
+            }
+            else if (msg.destinationName === TOPIC_QUEUE) {
+                renderQueue(payload); // Feature 4
+            }
+        };
+
+        function connect() {
+            document.getElementById("mqtt-debug").innerText = "Connecting...";
+            client.connect({
+                useSSL: true,
+                userName: MQTT_USER,
+                password: MQTT_PASS,
+                onSuccess: onConnect,
+                onFailure: (e) => {
+                    document.getElementById("mqtt-debug").innerText = "Failed: " + e.errorMessage;
+                    setSystemStatus("offline");
+                }
+            });
+        }
+
+        function onConnect() {
+            document.getElementById("mqtt-debug").innerText = "Connected";
+            client.subscribe(TOPIC_STATUS);
+            client.subscribe(TOPIC_LIB);
+            client.subscribe(TOPIC_PLAYLISTS);
+            client.subscribe(TOPIC_QUEUE); // Feature 4
+            
+            // Initial Data Fetch
+            setTimeout(() => {
+                sendPing();
+                getLibrary();
+                getPlaylists();
+                sendCommand({ action: "get_queue" }); // Ask for queue
+            }, 1000);
+
+            setInterval(checkHeartbeat, 2000);
+            setInterval(sendPing, 5000); 
+        }
+
+        // --- ACTIONS ---
+
+        // Feature 2: Play All (Sequentially or Randomly)
+        function playAllLibrary(shuffle) {
+            if(localLibrary.length === 0) { showToast("Library empty!"); return; }
+            if(!confirm(`Queue ${localLibrary.length} songs ${shuffle ? "randomly" : "sequentially"}?`)) return;
+
+            let songsToAdd = [...localLibrary];
+            
+            if (shuffle) {
+                // Fisher-Yates Shuffle
+                for (let i = songsToAdd.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [songsToAdd[i], songsToAdd[j]] = [songsToAdd[j], songsToAdd[i]];
+                }
+            }
+
+            // Send batch queue command (Client-side logic)
+            // Note: Ideally backend should handle "play_all", but this works for now.
+            // We use a small delay loop to avoid flooding MQTT if library is huge, 
+            // or just send individual messages rapidly.
+            let count = 0;
+            songsToAdd.forEach((song, idx) => {
+                setTimeout(() => {
+                     sendCommand({ action: "add_to_queue", song_id: song.id });
+                }, idx * 50); // 50ms delay between messages
+                count++;
+            });
+            
+            showToast(`Queuing ${count} songs...`);
+        }
+
+        // Feature 3: Seek and Skip
+        function seekTime(seconds) {
+            sendCommand({ action: "seek_relative", seconds: seconds });
+            showToast(`Seek ${seconds > 0 ? '+' : ''}${seconds}s`);
+        }
+
+        function skipSong(direction) {
+            sendCommand({ action: direction === 'next' ? "next_song" : "prev_song" });
+            showToast(direction === 'next' ? "Next Song" : "Previous Song");
+        }
+
+        function clearQueue() {
+            sendCommand({ action: "clear_queue" });
+            showToast("Queue Cleared");
+        }
+
+        function playSelectedPlaylist() {
+            const select = document.getElementById("playlistSelect");
+            const val = select.value;
+            if(!val) { showToast("Select playlist!"); return; }
+            const id = parseInt(val);
+            if(!isNaN(id)) {
+                 sendCommand({ action: "play_playlist", id: id });
+            } else {
+                 sendCommand({ action: "play_playlist", name: val });
+            }
+            showToast("Playing Playlist...");
+        }
+
+        function playSongNow(id) {
+            if(confirm("Stop current and play this?")) {
+                sendCommand({ action: "play_song_now", song_id: id });
+            }
+        }
+
+        function queueSong(id) {
+            sendCommand({ action: "add_to_queue", song_id: id });
+            const btn = document.getElementById('btn-q-'+id);
+            btn.innerText = "✔";
+            setTimeout(() => { btn.innerText = "➕ Q"; }, 1000);
+        }
+
+        function addSongToPlaylist(songId) {
+            const target = document.getElementById("targetPlaylistSelect").value;
+            if(!target) { showToast("Select target playlist first!"); return; }
+            sendCommand({ action: "add_to_playlist", playlist_id: parseInt(target), song_id: songId });
+            showToast("Added to Playlist!");
+        }
+
+        function stopMusic() {
+            sendCommand({ action: "stop_music" });
+            showToast("Stopped");
+        }
+
+        function setVolume(val) {
+            sendCommand({ action: "set_volume", level: val });
+        }
+
+        function toggleRandomMode() {
+            randomMode = !randomMode;
+            sendCommand({ action: "set_random_mode", enabled: randomMode });
+        }
+
+        function addToLibrary() {
+            const file = document.getElementById("newFilename").value;
+            const desc = document.getElementById("newDesc").value;
+            if(!file || !desc) { showToast("Fill all fields"); return; }
+            sendCommand({ action: "add_library_item", filename: file, description: desc });
+            document.getElementById("newFilename").value = "";
+            document.getElementById("newDesc").value = "";
+            showToast("Sent");
+        }
+
+        function createPlaylist() {
+            const name = document.getElementById("newPlaylistName").value;
+            if(name) {
+                sendCommand({ action: "create_playlist", name: name });
+                document.getElementById("newPlaylistName").value = "";
+                showToast("Creating...");
+            }
+        }
+        
+        function getLibrary() { sendCommand({ action: "get_library" }); }
+        function getPlaylists() { sendCommand({ action: "get_playlists" }); }
+
+        function sendCommand(data) {
+            if(!client.isConnected()) { showToast("Offline"); return; }
+            const msg = new Paho.MQTT.Message(JSON.stringify({type: "mqtt_command", data: data}));
+            msg.destinationName = TOPIC_CMD;
+            client.send(msg);
+        }
+
+        function sendPing() {
+            if(client.isConnected()) {
+                const msg = new Paho.MQTT.Message(JSON.stringify({type: "mqtt_command", data: {action: "get_status"}}));
+                msg.destinationName = TOPIC_CMD;
+                client.send(msg);
+            }
+        }
+
+        // --- UI UPDATES ---
+
+        function updateDashboard(status) {
+            if (status.music_state) {
+                const music = status.music_state;
+                const titleEl = document.getElementById("npTitle");
+                const statusEl = document.getElementById("npStatus");
                 
-                // Update active mode buttons
-                document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active-mode'));
-                if(m.playback_mode) document.getElementById('m-'+m.playback_mode.substring(0,3)).classList.add('active-mode');
+                if (music.status === "playing") {
+                    titleEl.innerText = "🎵 " + (music.current_song || "Unknown Track");
+                    titleEl.style.color = "#28a745"; 
+                    statusEl.innerText = "Playing Now";
+                } else {
+                    titleEl.innerText = "Nothing Playing";
+                    titleEl.style.color = "#666";
+                    statusEl.innerText = "Stopped";
+                }
+                
+                if (music.random_mode !== undefined) {
+                    randomMode = music.random_mode;
+                    const btn = document.getElementById("btnShuffle");
+                    if(randomMode) {
+                        btn.classList.add("active");
+                        btn.innerText = "🔀 Shuffle ON";
+                    } else {
+                        btn.classList.remove("active");
+                        btn.innerText = "🔀 Shuffle OFF";
+                    }
+                }
+            }
+        }
+
+        // Feature 4: Render Queue
+        function renderQueue(items) {
+            const tbody = document.getElementById("queueListBody");
+            tbody.innerHTML = "";
+            
+            if (!items || items.length === 0) {
+                tbody.innerHTML = `<tr><td style="text-align:center; padding:10px; color:#888;">Queue is empty</td></tr>`;
+                return;
             }
 
-            if (msg.destinationName === "farm/music/queue_detail") {
-                const qDiv = document.getElementById("queue-list");
-                qDiv.innerHTML = data.length ? data.map((s, i) => `<div>${i+1}. ${s.name}</div>`).join('') : "Queue empty";
+            items.forEach((song, index) => {
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+                    <td class="col-seq">${index + 1}</td>
+                    <td>
+                        <div class="lib-desc">${song.description}</div>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function renderLibrary(items) {
+            const tbody = document.getElementById("libraryListBody");
+            tbody.innerHTML = "";
+            
+            if (!items || items.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; padding:15px; color:#888;">Library is empty.</td></tr>`;
+                return;
+            }
+
+            items.forEach((song, index) => {
+                const tr = document.createElement("tr");
+                // Feature 1: Sequence Number (index + 1)
+                tr.innerHTML = `
+                    <td class="col-seq">${index + 1}</td>
+                    <td>
+                        <div class="lib-desc">${song.description}</div>
+                        <div class="lib-file">${song.filename}</div>
+                    </td>
+                    <td class="col-actions">
+                        <div class="btn-group">
+                            <button class="btn-sm play-now" onclick="playSongNow(${song.id})">▶</button>
+                            <button class="btn-sm add-queue" id="btn-q-${song.id}" onclick="queueSong(${song.id})">➕ Q</button>
+                            <button class="btn-sm add-list" id="btn-pl-${song.id}" onclick="addSongToPlaylist(${song.id})">📂</button>
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function renderPlaylists(items) {
+            const selectPlay = document.getElementById("playlistSelect");
+            const selectTarget = document.getElementById("targetPlaylistSelect");
+            
+            const currentPlay = selectPlay.value;
+            const currentTarget = selectTarget.value;
+
+            selectPlay.innerHTML = '<option value="" disabled selected>Select a Playlist...</option>';
+            selectTarget.innerHTML = '<option value="">(Select a Playlist first)</option>';
+            
+            if (items && items.length > 0) {
+                items.forEach(pl => {
+                    const opt1 = document.createElement("option");
+                    opt1.value = pl.id; 
+                    opt1.innerText = pl.name.replace(/_/g, " ");
+                    selectPlay.appendChild(opt1);
+
+                    const opt2 = document.createElement("option");
+                    opt2.value = pl.id; 
+                    opt2.innerText = pl.name.replace(/_/g, " ");
+                    selectTarget.appendChild(opt2);
+                });
+            }
+
+            if(currentPlay) selectPlay.value = currentPlay;
+            if(currentTarget) selectTarget.value = currentTarget;
+        }
+
+        function setSystemStatus(status) {
+            const el = document.getElementById("sysStatus");
+            const txt = document.getElementById("sysText");
+            el.className = "system-status"; 
+            if (status === "online") {
+                el.classList.add("status-online");
+                txt.innerText = "Online";
+            } else {
+                el.classList.add("status-offline");
+                txt.innerText = "Offline";
             }
         }
 
-        function sendMusicCmd(action, extra = {}) {
-            const message = new Paho.MQTT.Message(JSON.stringify({ action, ...extra }));
-            message.destinationName = "farm/commands";
-            client.send(message);
+        function showToast(msg) {
+            const x = document.getElementById("toast");
+            x.innerText = msg;
+            x.className = "show";
+            setTimeout(function(){ x.className = x.className.replace("show", ""); }, 3000);
         }
 
-        function playYT(toQueue) {
-            const url = document.getElementById("yt-url").value;
-            if(!url) return;
-            sendMusicCmd("play_youtube", { url, add_to_queue: toQueue });
-            document.getElementById("yt-url").value = "";
+        function checkHeartbeat() {
+            if (Date.now() - lastHeartbeat > 10000) setSystemStatus("offline");
         }
 
-        function toggleQueue() {
-            const el = document.getElementById("queue-list");
-            el.style.display = el.style.display === "block" ? "none" : "block";
-            if(el.style.display === "block") sendMusicCmd("get_queue_detail");
-        }
-
-        function setMode(mode) { sendMusicCmd("set_playback_mode", { mode }); }
-
-        window.onload = connect;
+        // Start
+        connect();
     </script>
 </body>
 </html>
