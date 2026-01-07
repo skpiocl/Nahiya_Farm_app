@@ -3,341 +3,143 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Farm Diagnostics Panel</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <title>Farm Media Controller</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
     <style>
-        body { font-family: 'Inter', sans-serif; }
-        .lucide { stroke-width: 2; }
-        #status-dot.bg-green-500 { animation: pulse 2s infinite; }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
-        .status-light { transition: background-color 0.3s ease; }
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: #1f2937; }
-        ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #6b7280; }
+        :root { --primary: #2563eb; --bg: #f1f5f9; --card: #ffffff; }
+        body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); padding: 15px; max-width: 500px; margin: auto; }
+        .card { background: var(--card); border-radius: 12px; padding: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 15px; }
+        
+        /* Now Playing HUD */
+        .hud { text-align: center; background: #1e293b; color: white; position: sticky; top: 0; z-index: 100; }
+        .song-title { color: #38bdf8; font-weight: bold; display: block; margin-bottom: 5px; height: 24px; overflow: hidden; }
+        .progress-container { background: #475569; border-radius: 10px; height: 6px; width: 100%; margin: 10px 0; cursor: pointer; }
+        .progress-bar { background: #38bdf8; height: 100%; width: 0%; border-radius: 10px; transition: width 0.3s; }
+        
+        /* Controls */
+        .nav-controls { display: flex; justify-content: space-around; align-items: center; margin: 10px 0; }
+        .btn-nav { background: none; border: none; color: white; font-size: 1.5em; cursor: pointer; }
+        .btn-play { background: #2563eb; width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+
+        /* Queue Dropdown */
+        .queue-box { display: none; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px; margin-top: 10px; text-align: left; max-height: 200px; overflow-y: auto; }
+        
+        /* Library Table */
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        td { padding: 10px 5px; border-bottom: 1px solid #f1f5f9; cursor: pointer; }
+        .seq-col { width: 30px; color: #94a3b8; font-size: 0.8em; }
+
+        .yt-section input { width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ddd; box-sizing: border-box; }
+        .mode-row { display: flex; gap: 5px; margin-top: 10px; }
+        .mode-btn { flex: 1; padding: 5px; font-size: 0.75em; border-radius: 4px; border: 1px solid #ddd; background: #fff; cursor: pointer; }
+        .active-mode { background: #2563eb; color: white; border-color: #2563eb; }
     </style>
 </head>
-<body class="bg-gray-800 text-gray-200 antialiased">
+<body>
 
-    <div class="container mx-auto p-4 md:p-6">
-        <header class="flex flex-col sm:flex-row justify-between items-center mb-6 pb-4 border-b border-gray-600">
-            <div class="flex items-center space-x-3 mb-4 sm:mb-0">
-                <i data-lucide="wrench" class="w-8 h-8 text-orange-400"></i>
-                <h1 class="text-2xl font-bold text-white">Diagnostics & Manual Control</h1>
-                <div id="connection-status-indicator" class="flex items-center space-x-2 ml-4">
-                    <div id="status-dot" class="w-3 h-3 rounded-full bg-yellow-500"></div>
-                    <span id="status-text" class="text-sm font-medium text-yellow-400">Connecting...</span>
-                </div>
-            </div>
-            <button id="get-status-btn" class="w-full sm:w-auto flex items-center justify-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">
-                <i data-lucide="refresh-cw" class="w-5 h-5"></i>
-                <span>Refresh Status</span>
-            </button>
-        </header>
+    <div class="card hud">
+        <span id="now-playing" class="song-title">Select a Song</span>
+        <div class="progress-container" onclick="handleSeek(event)">
+            <div id="progress-bar" class="progress-bar"></div>
+        </div>
+        <div style="display: flex; justify-content: space-between; font-size: 0.7em; color: #94a3b8;">
+            <span id="time-curr">00:00</span>
+            <span id="vol-pct">Volume: 100%</span>
+            <span id="time-total">00:00</span>
+        </div>
 
-        <main class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div class="nav-controls">
+            <button class="btn-nav" onclick="sendMusicCmd('music_seek', {seconds: -15})">⏪</button>
+            <button class="btn-nav" onclick="sendMusicCmd('music_prev')">⏮</button>
+            <button class="btn-nav btn-play" onclick="sendMusicCmd('stop_music')">⏹</button>
+            <button class="btn-nav" onclick="sendMusicCmd('music_next')">⏭</button>
+            <button class="btn-nav" onclick="sendMusicCmd('music_seek', {seconds: 15})">⏩</button>
+        </div>
+    </div>
 
-            <div class="bg-gray-900 p-5 rounded-xl shadow-lg space-y-4">
-                <h2 class="text-lg font-semibold text-white border-b border-gray-700 pb-2">Direct Relay Control (Channels 1-15)</h2>
-                <div id="relay-list-1" class="space-y-2"></div>
-            </div>
-            
-            <div class="bg-gray-900 p-5 rounded-xl shadow-lg space-y-4">
-                <h2 class="text-lg font-semibold text-white border-b border-gray-700 pb-2">Direct Relay Control (Channels 16-30)</h2>
-                <div id="relay-list-2" class="space-y-2"></div>
-            </div>
+    <div class="card yt-section">
+        <input type="text" id="yt-url" placeholder="Paste YouTube Link...">
+        <div class="mode-row">
+            <button class="mode-btn" style="background:#ef4444; color:white;" onclick="playYT(false)">Play Now</button>
+            <button class="mode-btn" style="background:#22c55e; color:white;" onclick="playYT(true)">+ Queue</button>
+        </div>
+        <div class="mode-row">
+            <button id="m-manual" class="mode-btn" onclick="setMode('manual')">Manual</button>
+            <button id="m-random" class="mode-btn" onclick="setMode('random')">Random</button>
+            <button id="m-seq" class="mode-btn" onclick="setMode('sequential')">Sequential</button>
+        </div>
+    </div>
 
-            <div class="bg-gray-900 p-5 rounded-xl shadow-lg space-y-4">
-                <h2 class="text-lg font-semibold text-white border-b border-gray-700 pb-2">IR Remote Commands</h2>
-                <div id="ir-controls" class="grid grid-cols-2 gap-2"></div>
+    <div class="card">
+        <button onclick="toggleQueue()" style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #ddd;">
+            View Queue (<span id="q-count">0</span> songs)
+        </button>
+        <div id="queue-list" class="queue-box"></div>
+    </div>
 
-                <h2 class="text-lg font-semibold text-white border-b border-gray-700 pb-2 pt-4">System Log & Events</h2>
-                <pre id="message-log" class="w-full h-40 bg-gray-900 text-xs text-gray-400 rounded-md p-3 overflow-y-auto whitespace-pre-wrap break-words"></pre>
-
-                <h2 class="text-lg font-semibold text-white border-b border-gray-700 pb-2 pt-4">Input Status (Modbus)</h2>
-                <div id="gpio-inputs-list" class="space-y-3 h-64 overflow-y-auto"></div>
-            </div>
-
-        </main>
+    <div class="card">
+        <table id="lib-table">
+            <thead><tr style="text-align: left; font-size: 0.8em; color: #64748b;"><th>#</th><th>Description</th></tr></thead>
+            <tbody></tbody>
+        </table>
     </div>
 
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            lucide.createIcons();
+        let client;
+        function connect() {
+            client = new Paho.MQTT.Client("broker.emqx.io", Number(8083), "web_" + Math.random());
+            client.onMessageArrived = onMessage;
+            client.connect({ onSuccess: () => { 
+                client.subscribe("farm/status");
+                client.subscribe("farm/music/queue_detail");
+                sendMusicCmd("get_status");
+                sendMusicCmd("get_queue_detail");
+            }, useSSL: true });
+        }
 
-            // --- Configuration ---
-            const MQTT_BROKER_HOST = 't7ef11fa.ala.asia-southeast1.emqxsl.com';
-            const MQTT_BROKER_PORT = 8084; // WebSocket Port
-            const MQTT_COMMAND_TOPIC = 'farm/commands';
-            const MQTT_STATUS_TOPIC = 'farm/status';
-            const MQTT_LOG_TOPIC = 'farm/logs';
-            const MQTT_USERNAME = "skp";
-            const MQTT_PASSWORD = "Bubble@10";
-
-            // --- RELAYS (REVERTED TO ORIGINAL WORKING CONFIG) ---
-            const RELAY_CHANNELS = {
-                power_control: { "DC Control": 16, "Outer_light_control": 17 },
-                pumping_valves: { "bore_valves": 1, "talaab_valves": 2, "pandubbi_valves": 3, "farm_house_valves": 4 },
-                irrigation_valves: { "upper_hill_mango": 5, "lower_hill_mango": 6, "lemon": 7 },
-                pumps_own_solar: { "gate_bore": 11, "talaab_bore": 12, "pandubbi": 13, "sarkari": 14, "middle": 15 },
-                pumps_sarkari_solar: { "gate_bore": 21, "talaab_bore": 22, "pandubbi": 23, "sarkari": 24, "middle": 25 },
-                master_off: { "own_solar": 26, "sarkari_solar": 28 } // Kept as 26/28 per your request
-            };
-
-            // --- INPUTS (UPDATED TO MATCH MODBUS CONFIG.PY) ---
-            const SYSTEM_INPUTS = {
-                // Module 1 (16 Inputs)
-                "FLOAT_VALVE_HILL": "M1-0", "FLOAT_VALVE_HOUSE": "M1-1",
-                "FEEDBACK_own_solar_gate_bore": "M1-2", "FEEDBACK_own_solar_talaab_bore": "M1-3",
-                "FEEDBACK_own_solar_pandubbi": "M1-4", "FEEDBACK_own_solar_sarkari": "M1-5", "FEEDBACK_own_solar_middle": "M1-6",
-                "FEEDBACK_sarkari_solar_gate_bore": "M1-7", "FEEDBACK_sarkari_solar_talaab_bore": "M1-8",
-                "FEEDBACK_sarkari_solar_pandubbi": "M1-9", "FEEDBACK_sarkari_solar_sarkari": "M1-10", "FEEDBACK_sarkari_solar_middle": "M1-11",
-                "VALVE_FEEDBACK_bore_valves": "M1-12", "VALVE_FEEDBACK_talaab_valves": "M1-13",
-                "VALVE_FEEDBACK_pandubbi_valves": "M1-14", "VALVE_FEEDBACK_farm_house_valves": "M1-15",
-                
-                // Module 2 (5 Inputs)
-                "PHASE_INDICATOR_OWN_SOLAR_1PH": "M2-0", "PHASE_INDICATOR_SARKARI_SOLAR_1PH": "M2-1",
-                "VALVE_FEEDBACK_upper_hill_mango": "M2-2", "VALVE_FEEDBACK_lower_hill_mango": "M2-3", "VALVE_FEEDBACK_lemon": "M2-4",
-
-                // Legacy
-                "IR_TX": 18, "IR_RX": 24 
-            };
+        function onMessage(msg) {
+            const data = JSON.parse(msg.payloadString);
             
-            const IR_COMMANDS = ["ON", "OFF", "BUTTON_1", "BUTTON_4"];
-
-            let client;
-            let isConnected = false;
-            const channelToInputMap = {};
-
-            const statusDotEl = document.getElementById('status-dot');
-            const statusTextEl = document.getElementById('status-text');
-            const messageLogEl = document.getElementById('message-log');
-
-            function logMessage(message) {
-                const timestamp = new Date().toLocaleTimeString();
-                messageLogEl.textContent = `[${timestamp}] ${message}\n` + messageLogEl.textContent;
-                if (messageLogEl.textContent.length > 2000) {
-                    messageLogEl.textContent = messageLogEl.textContent.substring(0, 2000);
-                }
+            if (msg.destinationName === "farm/status" && data.music) {
+                const m = data.music;
+                document.getElementById("now-playing").innerText = m.current_song || "Stopped";
+                document.getElementById("progress-bar").style.width = m.progress_pct + "%";
+                document.getElementById("vol-pct").innerText = `Volume: ${m.volume}%`;
+                document.getElementById("q-count").innerText = m.queue_len;
+                
+                // Update active mode buttons
+                document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active-mode'));
+                if(m.playback_mode) document.getElementById('m-'+m.playback_mode.substring(0,3)).classList.add('active-mode');
             }
 
-            function publishCommand(payload) {
-                if (!isConnected) return;
-                const message = JSON.stringify(payload);
-                client.publish(MQTT_COMMAND_TOPIC, message, { qos: 1 });
-                logMessage(`Sent: ${message}`);
+            if (msg.destinationName === "farm/music/queue_detail") {
+                const qDiv = document.getElementById("queue-list");
+                qDiv.innerHTML = data.length ? data.map((s, i) => `<div>${i+1}. ${s.name}</div>`).join('') : "Queue empty";
             }
-            
-            function onConnect() {
-                isConnected = true;
-                statusDotEl.className = 'w-3 h-3 rounded-full bg-green-500';
-                statusTextEl.textContent = 'Connected';
-                client.subscribe(MQTT_STATUS_TOPIC, { qos: 1 });
-                client.subscribe(MQTT_LOG_TOPIC, { qos: 0 });
-                logMessage(`UI Connected. Subscribed to topics.`);
-                publishCommand({ action: "get_status" });
-            }
+        }
 
-            function handleStatusUpdate(payloadString) {
-                 try {
-                    const status = JSON.parse(payloadString);
-                    
-                    if (status.raw_device_states) {
-                        const relays = status.raw_device_states.relays || {};
-                        // Checks for 'inputs' (Modbus) OR 'gpio' (Legacy) to ensure compatibility
-                        const inputs = status.raw_device_states.inputs || status.raw_device_states.gpio || {};
+        function sendMusicCmd(action, extra = {}) {
+            const message = new Paho.MQTT.Message(JSON.stringify({ action, ...extra }));
+            message.destinationName = "farm/commands";
+            client.send(message);
+        }
 
-                        // 1. Update Relay Lights (1-30)
-                        for (let i = 1; i <= 30; i++) {
-                            const channel = i.toString();
-                            const statusLight = document.querySelector(`.status-light[data-channel="${channel}"]`);
-                            if (!statusLight) continue; 
+        function playYT(toQueue) {
+            const url = document.getElementById("yt-url").value;
+            if(!url) return;
+            sendMusicCmd("play_youtube", { url, add_to_queue: toQueue });
+            document.getElementById("yt-url").value = "";
+        }
 
-                            // Determine state: Priority to Feedback Input, else Relay State
-                            let isTrulyOn = false;
-                            const feedbackInputName = channelToInputMap[channel];
+        function toggleQueue() {
+            const el = document.getElementById("queue-list");
+            el.style.display = el.style.display === "block" ? "none" : "block";
+            if(el.style.display === "block") sendMusicCmd("get_queue_detail");
+        }
 
-                            if (feedbackInputName && inputs[feedbackInputName] !== undefined) {
-                                isTrulyOn = inputs[feedbackInputName]; // Use physical feedback
-                            } else {
-                                isTrulyOn = relays[channel]; // Use logical relay state
-                            }
+        function setMode(mode) { sendMusicCmd("set_playback_mode", { mode }); }
 
-                            statusLight.classList.toggle('bg-green-500', !!isTrulyOn);
-                            statusLight.classList.toggle('bg-gray-600', !isTrulyOn);
-                        }
-                        
-                        // 2. Update Input List
-                        for (const name in SYSTEM_INPUTS) {
-                            const statusEl = document.getElementById(`input-${name}`);
-                            if (statusEl) {
-                                const isActive = inputs[name];
-
-                                if (isActive === undefined) {
-                                     statusEl.textContent = 'Unknown';
-                                     statusEl.className = 'font-mono text-sm font-bold text-gray-500';
-                                     continue;
-                                }
-
-                                // 1 = Active/Green, 0 = Inactive/Gray
-                                if (name.startsWith("FEEDBACK_") || name.startsWith("VALVE_")) {
-                                    statusEl.textContent = isActive ? 'ON (1)' : 'OFF (0)';
-                                    statusEl.className = isActive ? 'font-mono text-sm font-bold text-green-400' : 'font-mono text-sm font-bold text-gray-500';
-                                } else {
-                                    statusEl.textContent = isActive ? 'ACTIVE' : 'INACTIVE';
-                                    statusEl.className = isActive ? 'font-mono text-sm font-bold text-green-400' : 'font-mono text-sm font-bold text-gray-500';
-                                }
-                            }
-                        }
-                    }
-                } catch (e) {
-                    logMessage(`Error parsing status: ${e.message}`);
-                }
-            }
-
-            function connectMqtt() {
-                const clientId = `diag-client-${Math.random().toString(16).substr(2, 8)}`;
-                const fullUrl = `wss://${MQTT_BROKER_HOST}:${MQTT_BROKER_PORT}/mqtt`;
-                const options = {
-                    clientId: clientId,
-                    username: MQTT_USERNAME,
-                    password: MQTT_PASSWORD,
-                    reconnectPeriod: 5000,
-                    connectTimeout: 4000,
-                };
-                
-                logMessage(`Connecting to ${fullUrl}...`);
-                client = mqtt.connect(fullUrl, options);
-
-                client.on('connect', onConnect);
-                
-                client.on('message', (topic, payload) => {
-                    const message = payload.toString();
-                    if (topic === MQTT_STATUS_TOPIC) {
-                        handleStatusUpdate(message);
-                    } else if (topic === MQTT_LOG_TOPIC) {
-                        logMessage(message);
-                    }
-                });
-                
-                client.on('error', (err) => {
-                    isConnected = false;
-                    statusDotEl.className = 'w-3 h-3 rounded-full bg-red-500';
-                    statusTextEl.textContent = 'Error';
-                    logMessage(`Connection error: ${err.message}`);
-                    client.end();
-                });
-
-                client.on('close', () => {
-                    isConnected = false;
-                    statusDotEl.className = 'w-3 h-3 rounded-full bg-red-500';
-                    statusTextEl.textContent = 'Disconnected';
-                    logMessage('Connection closed. Retrying...');
-                });
-            }
-
-            function createRelayControl(name, channel) {
-                const nameFormatted = name.replace(/_/g, ' ');
-                const nameClass = name === 'Unassigned' ? 'text-gray-500 italic' : 'font-medium text-sm';
-                return `
-                    <div class="flex items-center justify-between bg-gray-800 p-2 rounded-lg">
-                        <div class="flex items-center space-x-2 overflow-hidden">
-                            <div class="status-light w-3 h-3 rounded-full bg-gray-600 flex-shrink-0" data-channel="${channel}"></div>
-                            <span class="font-mono text-xs text-gray-400 w-6 text-center flex-shrink-0">${channel}</span>
-                            <span class="${nameClass} truncate" title="${nameFormatted}">${nameFormatted}</span>
-                        </div>
-                        <div class="flex space-x-1 flex-shrink-0">
-                            <button onclick='publishCommand({action: "press_relay", channel: ${channel}})' class="bg-blue-600 hover:bg-blue-700 px-4 py-1 text-xs rounded">PRESS</button>
-                        </div>
-                    </div>`;
-            }
-            
-            function createInputIndicator(name) {
-                 return `<div class="flex items-center justify-between bg-gray-800 p-2 rounded-lg"><span class="font-medium text-sm truncate pr-2" title="${name}">${name.replace(/_/g, ' ')}</span><span id="input-${name}" class="font-mono text-sm font-bold text-gray-500">Unknown</span></div>`;
-            }
-
-            function initializeUI() {
-                const reverseRelayMap = {};
-                
-                function buildMaps(relayConfig, inputConfig) {
-                    // Power Control (From Original HTML)
-                    for (const name in relayConfig.power_control) {
-                        const channel = relayConfig.power_control[name];
-                        reverseRelayMap[channel] = name;
-                    }
-                    // Pumping Valves
-                    for (const name in relayConfig.pumping_valves) {
-                        const channel = relayConfig.pumping_valves[name];
-                        reverseRelayMap[channel] = name;
-                        const feedbackName = `VALVE_FEEDBACK_${name}`;
-                        if (inputConfig[feedbackName]) { channelToInputMap[channel] = feedbackName; }
-                    }
-                    // Irrigation Valves
-                    for (const name in relayConfig.irrigation_valves) {
-                        const channel = relayConfig.irrigation_valves[name];
-                        reverseRelayMap[channel] = name;
-                        const feedbackName = `VALVE_FEEDBACK_${name}`;
-                        if (inputConfig[feedbackName]) { channelToInputMap[channel] = feedbackName; }
-                    }
-                    // Own Solar Pumps
-                    for (const name in relayConfig.pumps_own_solar) {
-                        const channel = relayConfig.pumps_own_solar[name];
-                        reverseRelayMap[channel] = `OWN: ${name}`;
-                        const feedbackName = `FEEDBACK_own_solar_${name}`;
-                        if (inputConfig[feedbackName]) { channelToInputMap[channel] = feedbackName; }
-                    }
-                    // Sarkari Solar Pumps
-                    for (const name in relayConfig.pumps_sarkari_solar) {
-                        const channel = relayConfig.pumps_sarkari_solar[name];
-                        reverseRelayMap[channel] = `SARKARI: ${name}`;
-                        const feedbackName = `FEEDBACK_sarkari_solar_${name}`;
-                        if (inputConfig[feedbackName]) { channelToInputMap[channel] = feedbackName; }
-                    }
-                    // Master Off
-                    for (const name in relayConfig.master_off) {
-                        const channel = relayConfig.master_off[name];
-                        reverseRelayMap[channel] = `MASTER OFF: ${name}`;
-                    }
-                }
-                
-                buildMaps(RELAY_CHANNELS, SYSTEM_INPUTS);
-
-                const relayList1 = document.getElementById('relay-list-1');
-                const relayList2 = document.getElementById('relay-list-2');
-                
-                // Generate Relay UI for channels 1-30
-                for (let i = 1; i <= 30; i++) {
-                    const name = reverseRelayMap[i] || 'Unassigned';
-                    const controlHtml = createRelayControl(name, i);
-                    if (i <= 15) {
-                        relayList1.innerHTML += controlHtml;
-                    } else {
-                        relayList2.innerHTML += controlHtml;
-                    }
-                }
-
-                const irControls = document.getElementById('ir-controls');
-                IR_COMMANDS.forEach(cmd => {
-                    irControls.innerHTML += `<button onclick='publishCommand({action: "send_ir", signal: "${cmd}"})' class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg">${cmd}</button>`;
-                });
-                
-                const gpioList = document.getElementById('gpio-inputs-list');
-                for (const name in SYSTEM_INPUTS) {
-                    gpioList.innerHTML += createInputIndicator(name);
-                }
-                
-                document.getElementById('get-status-btn').onclick = () => publishCommand({ action: "get_status" });
-            }
-
-            window.publishCommand = publishCommand;
-            initializeUI();
-            connectMqtt();
-        });
+        window.onload = connect;
     </script>
 </body>
 </html>
-
-
