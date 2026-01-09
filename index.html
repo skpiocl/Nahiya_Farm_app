@@ -12,7 +12,7 @@
 
     <style>
         /* Base Styles */
-        body { font-family: 'Inter', sans-serif; background-color: #111827; color: #e5e7eb; }
+        body { font-family: 'Inter', sans-serif; background-color: #111827; color: #e5e7eb; overflow: hidden; /* Prevent body scroll, handle inside containers */ }
         .lucide { stroke-width: 1.5; }
         
         /* Utility */
@@ -31,8 +31,8 @@
         ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: #6b7280; }
 
-        /* Login & Modal Overlays */
-        .overlay {
+        /* Login Overlay */
+        #login-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.9); z-index: 9999;
             display: flex; justify-content: center; align-items: center;
@@ -49,11 +49,17 @@
         .data-table td { border-bottom: 1px solid #374151; padding: 10px; vertical-align: middle; }
         .data-table tr:last-child td { border-bottom: none; }
         .data-table tr:hover { background-color: #1f2937; }
+
+        /* Log Terminal Text Colors */
+        .log-cmd { color: #22d3ee; } /* Cyan */
+        .log-success { color: #4ade80; } /* Green */
+        .log-error { color: #f87171; } /* Red */
+        .log-info { color: #9ca3af; } /* Gray */
     </style>
 </head>
 <body>
 
-    <div id="login-overlay" class="overlay">
+    <div id="login-overlay">
         <div class="bg-gray-800 p-8 rounded-2xl shadow-2xl w-96 text-center border border-gray-700">
             <div class="mb-6">
                 <i data-lucide="shield-check" class="w-12 h-12 text-blue-500 mx-auto mb-2"></i>
@@ -71,22 +77,7 @@
         </div>
     </div>
 
-    <div id="log-overlay" class="overlay hidden-view" onclick="if(event.target === this) App.toggleLogs()">
-        <div class="bg-gray-900 w-11/12 md:w-3/4 h-3/4 rounded-xl shadow-2xl border border-gray-700 flex flex-col">
-            <div class="flex justify-between items-center p-4 border-b border-gray-700 bg-gray-800 rounded-t-xl">
-                <h2 class="text-lg font-bold text-white flex items-center"><i data-lucide="terminal" class="mr-2 text-green-400"></i> System Logs & Events</h2>
-                <div class="flex gap-2">
-                    <button onclick="Logger.clear()" class="text-xs bg-red-900/50 hover:bg-red-900 text-red-200 px-3 py-1 rounded border border-red-800">Clear</button>
-                    <button onclick="App.toggleLogs()" class="text-gray-400 hover:text-white"><i data-lucide="x" class="w-6 h-6"></i></button>
-                </div>
-            </div>
-            <div class="flex-1 p-4 overflow-hidden">
-                <pre id="universal-log" class="w-full h-full bg-black text-xs md:text-sm text-green-400 font-mono rounded-lg p-4 overflow-y-auto whitespace-pre-wrap break-words border border-gray-800 shadow-inner"></pre>
-            </div>
-        </div>
-    </div>
-
-    <div id="app-container" class="hidden-view min-h-screen flex flex-col md:flex-row">
+    <div id="app-container" class="hidden-view h-screen flex flex-col md:flex-row">
         
         <nav class="bg-gray-900 w-full md:w-64 flex-shrink-0 border-r border-gray-800 flex flex-col">
             <div class="p-6 border-b border-gray-800 flex items-center space-x-3">
@@ -113,12 +104,6 @@
                 <button onclick="App.switchView('diag')" class="nav-btn w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-300 hover:bg-gray-800 transition-colors">
                     <i data-lucide="wrench" class="w-5 h-5"></i><span>Diagnostics</span>
                 </button>
-                
-                <div class="border-t border-gray-800 my-2"></div>
-                
-                <button onclick="App.toggleLogs()" class="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-400 hover:bg-gray-800 hover:text-green-400 transition-colors">
-                    <i data-lucide="file-text" class="w-5 h-5"></i><span>System Logs</span>
-                </button>
             </div>
             
             <div class="p-4 border-t border-gray-800">
@@ -128,220 +113,233 @@
             </div>
         </nav>
 
-        <main class="flex-1 p-4 md:p-6 overflow-y-auto h-screen bg-gray-800">
+        <div class="flex-1 flex flex-col h-screen overflow-hidden">
             
-            <div id="view-control" class="active-view space-y-6">
-                <div class="flex justify-between items-center mb-6">
-                    <h2 class="text-2xl font-bold text-white">Main Control</h2>
-                </div>
+            <main class="flex-1 p-4 md:p-6 overflow-y-auto bg-gray-800">
                 
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <div class="bg-gray-900 p-5 rounded-xl border border-gray-700">
-                        <h3 class="text-lg font-semibold text-white mb-4 flex items-center"><i data-lucide="activity" class="mr-2 text-green-400"></i> Live Status</h3>
-                        <div class="space-y-4 text-sm">
-                            <div class="bg-gray-800 p-3 rounded">
-                                <span class="text-gray-400">Running Pumps:</span>
-                                <div id="cp-running-pumps" class="text-white font-mono mt-1">None</div>
-                            </div>
-                            <div class="grid grid-cols-2 gap-4">
-                                <div class="bg-gray-800 p-3 rounded text-center">
-                                    <i data-lucide="droplets" class="mx-auto w-6 h-6 text-blue-500 mb-1"></i>
-                                    <span class="text-gray-400 block">Hill Tank</span>
-                                    <span id="cp-tank-hill" class="font-bold text-white">Unknown</span>
-                                </div>
-                                <div class="bg-gray-800 p-3 rounded text-center">
-                                    <i data-lucide="droplets" class="mx-auto w-6 h-6 text-blue-500 mb-1"></i>
-                                    <span class="text-gray-400 block">House Tank</span>
-                                    <span id="cp-tank-house" class="font-bold text-white">Unknown</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="bg-gray-900 p-5 rounded-xl border border-gray-700">
-                        <h3 class="text-lg font-semibold text-white mb-4 flex items-center"><i data-lucide="sun" class="mr-2 text-yellow-400"></i> Solar Pumps</h3>
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <h4 class="text-xs uppercase text-gray-500 font-bold mb-2">Own Solar</h4>
-                                <div id="cp-own-solar-list" class="space-y-2"></div>
-                                <button onclick="Mqtt.send('stop_string', {source: 'own_solar'})" class="w-full mt-2 bg-red-900/50 hover:bg-red-800 text-red-200 text-xs py-2 rounded border border-red-700">STOP STRING</button>
-                            </div>
-                            <div>
-                                <h4 class="text-xs uppercase text-gray-500 font-bold mb-2">Sarkari Solar</h4>
-                                <div id="cp-sarkari-solar-list" class="space-y-2"></div>
-                                <button onclick="Mqtt.send('stop_string', {source: 'sarkari_solar'})" class="w-full mt-2 bg-red-900/50 hover:bg-red-800 text-red-200 text-xs py-2 rounded border border-red-700">STOP STRING</button>
-                            </div>
-                        </div>
+                <div id="view-control" class="active-view space-y-6">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-bold text-white">Main Control</h2>
                     </div>
                     
-                    <div class="bg-gray-900 p-5 rounded-xl border border-gray-700">
-                        <h3 class="text-lg font-semibold text-white mb-4">Pumping Valves</h3>
-                        <div id="cp-valves-list" class="space-y-3"></div>
-                        <button onclick="ControlPanel.updateValves()" class="w-full mt-4 bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 rounded">Update Valves</button>
-                    </div>
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div class="bg-gray-900 p-5 rounded-xl border border-gray-700">
+                            <h3 class="text-lg font-semibold text-white mb-4 flex items-center"><i data-lucide="activity" class="mr-2 text-green-400"></i> Live Status</h3>
+                            <div class="space-y-4 text-sm">
+                                <div class="bg-gray-800 p-3 rounded">
+                                    <span class="text-gray-400">Running Pumps:</span>
+                                    <div id="cp-running-pumps" class="text-white font-mono mt-1">None</div>
+                                </div>
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div class="bg-gray-800 p-3 rounded text-center">
+                                        <i data-lucide="droplets" class="mx-auto w-6 h-6 text-blue-500 mb-1"></i>
+                                        <span class="text-gray-400 block">Hill Tank</span>
+                                        <span id="cp-tank-hill" class="font-bold text-white">Unknown</span>
+                                    </div>
+                                    <div class="bg-gray-800 p-3 rounded text-center">
+                                        <i data-lucide="droplets" class="mx-auto w-6 h-6 text-blue-500 mb-1"></i>
+                                        <span class="text-gray-400 block">House Tank</span>
+                                        <span id="cp-tank-house" class="font-bold text-white">Unknown</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
 
-                    <div class="bg-gray-900 p-5 rounded-xl border border-gray-700">
-                        <h3 class="text-lg font-semibold text-white mb-4">Irrigation Areas</h3>
-                        <div id="cp-irrigation-list" class="space-y-3"></div>
-                        <button onclick="ControlPanel.updateIrrigation()" class="w-full mt-4 bg-green-600 hover:bg-green-700 text-white font-bold py-2 rounded">Update Irrigation</button>
+                        <div class="bg-gray-900 p-5 rounded-xl border border-gray-700">
+                            <h3 class="text-lg font-semibold text-white mb-4 flex items-center"><i data-lucide="sun" class="mr-2 text-yellow-400"></i> Solar Pumps</h3>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <h4 class="text-xs uppercase text-gray-500 font-bold mb-2">Own Solar</h4>
+                                    <div id="cp-own-solar-list" class="space-y-2"></div>
+                                    <button onclick="Mqtt.send('stop_string', {source: 'own_solar'})" class="w-full mt-2 bg-red-900/50 hover:bg-red-800 text-red-200 text-xs py-2 rounded border border-red-700">STOP STRING</button>
+                                </div>
+                                <div>
+                                    <h4 class="text-xs uppercase text-gray-500 font-bold mb-2">Sarkari Solar</h4>
+                                    <div id="cp-sarkari-solar-list" class="space-y-2"></div>
+                                    <button onclick="Mqtt.send('stop_string', {source: 'sarkari_solar'})" class="w-full mt-2 bg-red-900/50 hover:bg-red-800 text-red-200 text-xs py-2 rounded border border-red-700">STOP STRING</button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-gray-900 p-5 rounded-xl border border-gray-700">
+                            <h3 class="text-lg font-semibold text-white mb-4">Pumping Valves</h3>
+                            <div id="cp-valves-list" class="space-y-3"></div>
+                            <button onclick="ControlPanel.updateValves()" class="w-full mt-4 bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 rounded">Update Valves</button>
+                        </div>
+
+                        <div class="bg-gray-900 p-5 rounded-xl border border-gray-700">
+                            <h3 class="text-lg font-semibold text-white mb-4">Irrigation Areas</h3>
+                            <div id="cp-irrigation-list" class="space-y-3"></div>
+                            <button onclick="ControlPanel.updateIrrigation()" class="w-full mt-4 bg-green-600 hover:bg-green-700 text-white font-bold py-2 rounded">Update Irrigation</button>
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            <div id="view-music" class="hidden-view max-w-4xl mx-auto space-y-6">
-                <div class="bg-gray-900 p-6 rounded-xl border border-gray-700 text-center">
-                    <h2 class="text-xl font-bold text-white mb-2">Now Playing</h2>
-                    <div id="music-title" class="text-2xl font-bold text-blue-400 mb-1">Nothing Playing</div>
-                    <div id="music-status" class="text-sm text-gray-500 mb-6">Stopped</div>
-                    <div class="flex items-center space-x-4 mb-6 bg-gray-800 p-3 rounded-lg">
-                        <span>🔈</span>
-                        <input type="range" min="0" max="100" value="100" class="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer" onchange="Mqtt.send('set_volume', {level: this.value})">
-                        <span>🔊</span>
+                <div id="view-music" class="hidden-view max-w-4xl mx-auto space-y-6">
+                    <div class="bg-gray-900 p-6 rounded-xl border border-gray-700 text-center">
+                        <h2 class="text-xl font-bold text-white mb-2">Now Playing</h2>
+                        <div id="music-title" class="text-2xl font-bold text-blue-400 mb-1">Nothing Playing</div>
+                        <div id="music-status" class="text-sm text-gray-500 mb-6">Stopped</div>
+                        <div class="flex items-center space-x-4 mb-6 bg-gray-800 p-3 rounded-lg">
+                            <span>🔈</span>
+                            <input type="range" min="0" max="100" value="100" class="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer" onchange="Mqtt.send('set_volume', {level: this.value})">
+                            <span>🔊</span>
+                        </div>
+                        <div class="grid grid-cols-4 gap-2 mb-4">
+                            <button onclick="Mqtt.send('prev_song')" class="bg-gray-700 hover:bg-gray-600 p-3 rounded">|&lt;</button>
+                            <button onclick="Mqtt.send('seek_relative', {seconds: -10})" class="bg-gray-700 hover:bg-gray-600 p-3 rounded">-10s</button>
+                            <button onclick="Mqtt.send('seek_relative', {seconds: 10})" class="bg-gray-700 hover:bg-gray-600 p-3 rounded">+10s</button>
+                            <button onclick="Mqtt.send('next_song')" class="bg-gray-700 hover:bg-gray-600 p-3 rounded">&gt;|</button>
+                        </div>
+                        <div class="flex gap-2">
+                            <button id="btn-shuffle" onclick="MusicPlayer.toggleShuffle()" class="flex-1 bg-gray-700 hover:bg-gray-600 p-3 rounded font-bold text-gray-300">🔀 Shuffle OFF</button>
+                            <button onclick="Mqtt.send('stop_music')" class="flex-[2] bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded">STOP ALL</button>
+                        </div>
                     </div>
-                    <div class="grid grid-cols-4 gap-2 mb-4">
-                        <button onclick="Mqtt.send('prev_song')" class="bg-gray-700 hover:bg-gray-600 p-3 rounded">|&lt;</button>
-                        <button onclick="Mqtt.send('seek_relative', {seconds: -10})" class="bg-gray-700 hover:bg-gray-600 p-3 rounded">-10s</button>
-                        <button onclick="Mqtt.send('seek_relative', {seconds: 10})" class="bg-gray-700 hover:bg-gray-600 p-3 rounded">+10s</button>
-                        <button onclick="Mqtt.send('next_song')" class="bg-gray-700 hover:bg-gray-600 p-3 rounded">&gt;|</button>
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div class="bg-gray-900 p-5 rounded-xl border border-gray-700">
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 class="text-lg font-bold">Queue</h3>
+                                <button onclick="Mqtt.send('clear_queue')" class="text-red-400 text-xs border border-red-900 px-2 py-1 rounded hover:bg-red-900">Clear</button>
+                            </div>
+                            <div class="h-64 overflow-y-auto">
+                                <table class="w-full data-table">
+                                    <tbody id="music-queue-list"><tr><td class="text-gray-500 text-center">Queue Empty</td></tr></tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="bg-gray-900 p-5 rounded-xl border border-gray-700">
+                            <h3 class="text-lg font-bold mb-4">Playlists</h3>
+                            <div class="flex gap-2 mb-4">
+                                <select id="music-playlist-select" class="flex-1 bg-gray-800 text-white p-2 rounded border border-gray-600 text-sm"><option>Loading...</option></select>
+                                <button onclick="MusicPlayer.playSelected()" class="bg-blue-600 px-4 rounded hover:bg-blue-500">Play</button>
+                            </div>
+                            <div class="bg-gray-800 p-3 rounded">
+                                <h4 class="text-xs font-bold text-gray-400 mb-2">CREATE NEW PLAYLIST</h4>
+                                <div class="flex gap-2">
+                                    <input type="text" id="new-playlist-name" placeholder="Name..." class="flex-1 bg-gray-900 text-white p-2 rounded text-sm border border-gray-700">
+                                    <button onclick="MusicPlayer.createPlaylist()" class="bg-green-600 px-3 rounded text-sm hover:bg-green-500">Create</button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="flex gap-2">
-                        <button id="btn-shuffle" onclick="MusicPlayer.toggleShuffle()" class="flex-1 bg-gray-700 hover:bg-gray-600 p-3 rounded font-bold text-gray-300">🔀 Shuffle OFF</button>
-                        <button onclick="Mqtt.send('stop_music')" class="flex-[2] bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded">STOP ALL</button>
-                    </div>
-                </div>
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <div class="bg-gray-900 p-5 rounded-xl border border-gray-700">
                         <div class="flex justify-between items-center mb-4">
-                            <h3 class="text-lg font-bold">Queue</h3>
-                            <button onclick="Mqtt.send('clear_queue')" class="text-red-400 text-xs border border-red-900 px-2 py-1 rounded hover:bg-red-900">Clear</button>
+                            <h3 class="text-lg font-bold">Library</h3>
+                            <div class="flex gap-2">
+                                <button onclick="MusicPlayer.playAll(false)" class="bg-purple-600 hover:bg-purple-500 px-3 py-1 rounded text-xs">Play All (Seq)</button>
+                                <button onclick="MusicPlayer.playAll(true)" class="bg-pink-600 hover:bg-pink-500 px-3 py-1 rounded text-xs">Play All (Mix)</button>
+                                <button onclick="Mqtt.send('get_library')" class="bg-gray-700 px-3 py-1 rounded text-xs">↻</button>
+                            </div>
                         </div>
-                        <div class="h-64 overflow-y-auto">
-                            <table class="w-full data-table">
-                                <tbody id="music-queue-list"><tr><td class="text-gray-500 text-center">Queue Empty</td></tr></tbody>
+                        <div class="bg-gray-800 p-3 rounded mb-4 border border-gray-600">
+                            <h4 class="text-xs font-bold text-gray-400 mb-2">REGISTER NEW FILE</h4>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
+                                <input type="text" id="new-file-path" placeholder="Filename" class="bg-gray-900 text-white p-2 rounded text-sm border border-gray-700">
+                                <input type="text" id="new-file-desc" placeholder="Description" class="bg-gray-900 text-white p-2 rounded text-sm border border-gray-700">
+                                <button onclick="MusicPlayer.addFile()" class="bg-green-600 hover:bg-green-500 rounded text-sm font-bold">Save to Library</button>
+                            </div>
+                        </div>
+                        <div class="mb-2 bg-yellow-900/20 p-2 rounded border border-yellow-900/50 flex items-center gap-2">
+                            <span class="text-xs text-yellow-500 font-bold">Target Playlist:</span>
+                            <select id="target-playlist-select" class="bg-gray-900 text-white text-xs p-1 rounded border border-gray-600 flex-1"><option value="">Select a playlist...</option></select>
+                        </div>
+                        <div class="max-h-96 overflow-y-auto">
+                            <table class="w-full data-table text-sm">
+                                <thead><tr><th class="w-10">#</th><th>Track</th><th class="w-32 text-right">Actions</th></tr></thead>
+                                <tbody id="music-library-list"><tr><td colspan="3" class="text-center text-gray-500">Loading Library...</td></tr></tbody>
                             </table>
                         </div>
                     </div>
-                    <div class="bg-gray-900 p-5 rounded-xl border border-gray-700">
-                        <h3 class="text-lg font-bold mb-4">Playlists</h3>
-                        <div class="flex gap-2 mb-4">
-                            <select id="music-playlist-select" class="flex-1 bg-gray-800 text-white p-2 rounded border border-gray-600 text-sm"><option>Loading...</option></select>
-                            <button onclick="MusicPlayer.playSelected()" class="bg-blue-600 px-4 rounded hover:bg-blue-500">Play</button>
-                        </div>
-                        <div class="bg-gray-800 p-3 rounded">
-                            <h4 class="text-xs font-bold text-gray-400 mb-2">CREATE NEW PLAYLIST</h4>
-                            <div class="flex gap-2">
-                                <input type="text" id="new-playlist-name" placeholder="Name..." class="flex-1 bg-gray-900 text-white p-2 rounded text-sm border border-gray-700">
-                                <button onclick="MusicPlayer.createPlaylist()" class="bg-green-600 px-3 rounded text-sm hover:bg-green-500">Create</button>
+                </div>
+
+                <div id="view-scheduler" class="hidden-view max-w-3xl mx-auto space-y-6">
+                    <div class="bg-gray-900 p-6 rounded-xl border border-gray-700">
+                        <h2 class="text-xl font-bold text-white mb-4">Create New Task</h2>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                            <div>
+                                <label class="block text-sm text-gray-400 mb-1">Device Type</label>
+                                <select id="sched-type" onchange="Scheduler.updateDeviceList()" class="w-full bg-gray-800 text-white p-2 rounded border border-gray-600">
+                                    <option value="pump">Pump</option>
+                                    <option value="valve">Valve</option>
+                                    <option value="music">Music</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm text-gray-400 mb-1">Device Name</label>
+                                <select id="sched-name" class="w-full bg-gray-800 text-white p-2 rounded border border-gray-600"></select>
+                            </div>
+                            <div id="sched-source-wrapper">
+                                <label class="block text-sm text-gray-400 mb-1">Source</label>
+                                <select id="sched-source" class="w-full bg-gray-800 text-white p-2 rounded border border-gray-600">
+                                    <option value="own_solar">Own Solar</option>
+                                    <option value="sarkari_solar">Sarkari Solar</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm text-gray-400 mb-1">Start Time</label>
+                                <input type="datetime-local" id="sched-time" class="w-full bg-gray-800 text-white p-2 rounded border border-gray-600">
+                            </div>
+                            <div>
+                                <label class="block text-sm text-gray-400 mb-1">Duration (Mins)</label>
+                                <input type="number" id="sched-duration" value="60" class="w-full bg-gray-800 text-white p-2 rounded border border-gray-600">
                             </div>
                         </div>
+                        <button onclick="Scheduler.saveTask()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded">Schedule Task</button>
                     </div>
-                </div>
-                <div class="bg-gray-900 p-5 rounded-xl border border-gray-700">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-lg font-bold">Library</h3>
-                        <div class="flex gap-2">
-                            <button onclick="MusicPlayer.playAll(false)" class="bg-purple-600 hover:bg-purple-500 px-3 py-1 rounded text-xs">Play All (Seq)</button>
-                            <button onclick="MusicPlayer.playAll(true)" class="bg-pink-600 hover:bg-pink-500 px-3 py-1 rounded text-xs">Play All (Mix)</button>
-                            <button onclick="Mqtt.send('get_library')" class="bg-gray-700 px-3 py-1 rounded text-xs">↻</button>
+                    <div class="bg-gray-900 p-6 rounded-xl border border-gray-700">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg font-bold">Active Schedules</h3>
+                            <button onclick="Mqtt.send('get_schedule')" class="text-blue-400 text-sm hover:underline">Refresh</button>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-sm text-gray-400">
+                                <thead class="bg-gray-800 text-gray-200">
+                                    <tr>
+                                        <th class="p-3">Device</th>
+                                        <th class="p-3">Start</th>
+                                        <th class="p-3">Status</th>
+                                        <th class="p-3 text-right">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="sched-list"><tr><td colspan="4" class="p-4 text-center">Loading...</td></tr></tbody>
+                            </table>
                         </div>
                     </div>
-                    <div class="bg-gray-800 p-3 rounded mb-4 border border-gray-600">
-                        <h4 class="text-xs font-bold text-gray-400 mb-2">REGISTER NEW FILE</h4>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
-                            <input type="text" id="new-file-path" placeholder="Filename" class="bg-gray-900 text-white p-2 rounded text-sm border border-gray-700">
-                            <input type="text" id="new-file-desc" placeholder="Description" class="bg-gray-900 text-white p-2 rounded text-sm border border-gray-700">
-                            <button onclick="MusicPlayer.addFile()" class="bg-green-600 hover:bg-green-500 rounded text-sm font-bold">Save to Library</button>
-                        </div>
-                    </div>
-                    <div class="mb-2 bg-yellow-900/20 p-2 rounded border border-yellow-900/50 flex items-center gap-2">
-                        <span class="text-xs text-yellow-500 font-bold">Target Playlist:</span>
-                        <select id="target-playlist-select" class="bg-gray-900 text-white text-xs p-1 rounded border border-gray-600 flex-1"><option value="">Select a playlist...</option></select>
-                    </div>
-                    <div class="max-h-96 overflow-y-auto">
-                        <table class="w-full data-table text-sm">
-                            <thead><tr><th class="w-10">#</th><th>Track</th><th class="w-32 text-right">Actions</th></tr></thead>
-                            <tbody id="music-library-list"><tr><td colspan="3" class="text-center text-gray-500">Loading Library...</td></tr></tbody>
-                        </table>
-                    </div>
                 </div>
-            </div>
 
-            <div id="view-scheduler" class="hidden-view max-w-3xl mx-auto space-y-6">
-                <div class="bg-gray-900 p-6 rounded-xl border border-gray-700">
-                    <h2 class="text-xl font-bold text-white mb-4">Create New Task</h2>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                        <div>
-                            <label class="block text-sm text-gray-400 mb-1">Device Type</label>
-                            <select id="sched-type" onchange="Scheduler.updateDeviceList()" class="w-full bg-gray-800 text-white p-2 rounded border border-gray-600">
-                                <option value="pump">Pump</option>
-                                <option value="valve">Valve</option>
-                                <option value="music">Music</option>
-                            </select>
+                <div id="view-diag" class="hidden-view space-y-6">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div class="bg-gray-900 p-5 rounded-xl border border-gray-700">
+                            <h3 class="text-lg font-bold mb-4">Relays 1-15</h3>
+                            <div id="diag-relays-1" class="space-y-2 max-h-96 overflow-y-auto pr-2"></div>
                         </div>
-                        <div>
-                            <label class="block text-sm text-gray-400 mb-1">Device Name</label>
-                            <select id="sched-name" class="w-full bg-gray-800 text-white p-2 rounded border border-gray-600"></select>
+                        <div class="bg-gray-900 p-5 rounded-xl border border-gray-700">
+                            <h3 class="text-lg font-bold mb-4">Relays 16-30</h3>
+                            <div id="diag-relays-2" class="space-y-2 max-h-96 overflow-y-auto pr-2"></div>
                         </div>
-                        <div id="sched-source-wrapper">
-                            <label class="block text-sm text-gray-400 mb-1">Source</label>
-                            <select id="sched-source" class="w-full bg-gray-800 text-white p-2 rounded border border-gray-600">
-                                <option value="own_solar">Own Solar</option>
-                                <option value="sarkari_solar">Sarkari Solar</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm text-gray-400 mb-1">Start Time</label>
-                            <input type="datetime-local" id="sched-time" class="w-full bg-gray-800 text-white p-2 rounded border border-gray-600">
-                        </div>
-                        <div>
-                            <label class="block text-sm text-gray-400 mb-1">Duration (Mins)</label>
-                            <input type="number" id="sched-duration" value="60" class="w-full bg-gray-800 text-white p-2 rounded border border-gray-600">
-                        </div>
-                    </div>
-                    <button onclick="Scheduler.saveTask()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded">Schedule Task</button>
-                </div>
-                <div class="bg-gray-900 p-6 rounded-xl border border-gray-700">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-lg font-bold">Active Schedules</h3>
-                        <button onclick="Mqtt.send('get_schedule')" class="text-blue-400 text-sm hover:underline">Refresh</button>
-                    </div>
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left text-sm text-gray-400">
-                            <thead class="bg-gray-800 text-gray-200">
-                                <tr>
-                                    <th class="p-3">Device</th>
-                                    <th class="p-3">Start</th>
-                                    <th class="p-3">Status</th>
-                                    <th class="p-3 text-right">Action</th>
-                                </tr>
-                            </thead>
-                            <tbody id="sched-list"><tr><td colspan="4" class="p-4 text-center">Loading...</td></tr></tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <div id="view-diag" class="hidden-view space-y-6">
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <div class="bg-gray-900 p-5 rounded-xl border border-gray-700">
-                        <h3 class="text-lg font-bold mb-4">Relays 1-15</h3>
-                        <div id="diag-relays-1" class="space-y-2 max-h-96 overflow-y-auto pr-2"></div>
                     </div>
                     <div class="bg-gray-900 p-5 rounded-xl border border-gray-700">
-                        <h3 class="text-lg font-bold mb-4">Relays 16-30</h3>
-                        <div id="diag-relays-2" class="space-y-2 max-h-96 overflow-y-auto pr-2"></div>
+                        <h3 class="text-lg font-bold mb-4">Input Sensors (Modbus)</h3>
+                        <div id="diag-inputs" class="grid grid-cols-2 md:grid-cols-3 gap-3"></div>
                     </div>
                 </div>
-                <div class="bg-gray-900 p-5 rounded-xl border border-gray-700">
-                    <h3 class="text-lg font-bold mb-4">Input Sensors (Modbus)</h3>
-                    <div id="diag-inputs" class="grid grid-cols-2 md:grid-cols-3 gap-3"></div>
-                </div>
-            </div>
 
-        </main>
+            </main>
+
+            <div id="log-panel" class="h-48 bg-black border-t border-gray-700 flex flex-col flex-shrink-0">
+                <div class="flex justify-between items-center p-2 bg-gray-900 border-b border-gray-800 px-4">
+                    <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center">
+                        <i data-lucide="terminal" class="w-3 h-3 mr-2"></i> System Logs
+                    </h3>
+                    <button onclick="Logger.clear()" class="text-xs text-red-400 hover:text-white border border-red-900 px-2 py-0.5 rounded hover:bg-red-900">Clear Logs</button>
+                </div>
+                <pre id="universal-log" class="flex-1 p-4 overflow-y-auto font-mono text-xs text-gray-300 whitespace-pre-wrap break-words"></pre>
+            </div>
+        </div>
     </div>
 
-    <div id="toast" class="fixed bottom-5 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white py-2 px-6 rounded-full shadow-lg opacity-0 transition-opacity duration-300 pointer-events-none z-50">Action Sent</div>
+    <div id="toast" class="fixed bottom-12 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white py-2 px-6 rounded-full shadow-lg opacity-0 transition-opacity duration-300 pointer-events-none z-50">Action Sent</div>
 
     <script>
         // --- 1. CONFIGURATION & MAPPING ---
@@ -401,16 +399,6 @@
                 if(viewId === 'music') { Mqtt.send('get_playlists'); Mqtt.send('get_queue'); Mqtt.send('get_library'); }
                 if(viewId === 'scheduler') { Mqtt.send('get_schedule'); Mqtt.send('get_playlists'); }
             },
-            toggleLogs: () => {
-                const logDiv = document.getElementById('log-overlay');
-                if (logDiv.classList.contains('hidden-view')) {
-                    logDiv.classList.remove('hidden-view');
-                    logDiv.style.display = 'flex';
-                } else {
-                    logDiv.classList.add('hidden-view');
-                    logDiv.style.display = 'none';
-                }
-            },
             showToast: (msg) => {
                 const t = document.getElementById('toast');
                 t.innerText = msg; t.classList.remove('opacity-0');
@@ -418,15 +406,24 @@
             }
         };
 
-        // --- 3. LOGGER MODULE ---
+        // --- 3. LOGGER MODULE (SMART FILTERING) ---
         const Logger = {
-            log: (message) => {
+            log: (message, type = 'info') => {
                 const logEl = document.getElementById('universal-log');
                 const ts = new Date().toLocaleTimeString();
-                logEl.textContent = `[${ts}] ${message}\n` + logEl.textContent;
+                
+                // Color Logic
+                let colorClass = "log-info";
+                if(type === 'cmd') colorClass = "log-cmd";
+                if(type === 'success') colorClass = "log-success";
+                if(type === 'error') colorClass = "log-error";
+
+                // Prepend new log
+                const span = `<span class="${colorClass}">[${ts}] ${message}</span>\n`;
+                logEl.innerHTML = span + logEl.innerHTML;
             },
             clear: () => {
-                document.getElementById('universal-log').textContent = "";
+                document.getElementById('universal-log').innerHTML = "";
             }
         };
 
@@ -442,21 +439,29 @@
                     Mqtt.isConnected = true; Mqtt.updateStatusUI(true);
                     Object.values(CONSTANTS.TOPICS).forEach(t => Mqtt.client.subscribe(t));
                     Mqtt.send('get_status');
-                    Logger.log("System Connected");
+                    Logger.log("System Connected to MQTT Broker", 'success');
                 });
                 Mqtt.client.on('message', (topic, payload) => {
                     try {
                         const msgStr = payload.toString();
-                        // Handle Logs First
+                        
+                        // --- FILTERING LOGIC ---
                         if (topic === CONSTANTS.TOPICS.LOGS) {
-                            Logger.log("LOG: " + msgStr);
+                            if(msgStr.includes("WARNING")) return; // Ignore Warnings (Don't overwhelm)
+                            
+                            if(msgStr.toLowerCase().includes("error") || msgStr.toLowerCase().includes("exception")) {
+                                Logger.log("SERVER: " + msgStr, 'error');
+                            } else {
+                                Logger.log("SERVER: " + msgStr, 'info');
+                            }
                             return; 
                         }
                         
+                        // Handle Data
                         const data = JSON.parse(msgStr);
                         if (topic === CONSTANTS.TOPICS.STATUS) {
                             ControlPanel.updateUI(data); Diagnostics.updateUI(data); MusicPlayer.updateUI(data);
-                            Logger.log("Status Updated");
+                            Logger.log("<< Received Status Update", 'success');
                         } else if (topic === CONSTANTS.TOPICS.PLAYLISTS) {
                             DATA.playlists = data; MusicPlayer.renderPlaylists(data);
                         } else if (topic === CONSTANTS.TOPICS.SCHEDULE) {
@@ -468,16 +473,16 @@
                         }
                     } catch (e) { console.error("Parse Error", e); }
                 });
-                Mqtt.client.on('offline', () => { Mqtt.updateStatusUI(false); Logger.log("Connection Lost"); });
+                Mqtt.client.on('offline', () => { Mqtt.updateStatusUI(false); Logger.log("Connection Lost", 'error'); });
             },
             send: (action, data = {}) => {
                 if (!Mqtt.isConnected) return;
                 const payload = JSON.stringify({ type: "mqtt_command", data: { action: action, ...data } });
                 Mqtt.client.publish(CONSTANTS.TOPICS.CMD, payload);
                 
-                // LOG OUTGOING COMMANDS
+                // Log Command Sent (Blue)
                 if (action !== 'get_status') {
-                    Logger.log(`SENT CMD: ${action} ${JSON.stringify(data)}`);
+                    Logger.log(`>> SENT: ${action} ${JSON.stringify(data)}`, 'cmd');
                     App.showToast('Command Sent');
                 }
             },
