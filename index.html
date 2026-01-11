@@ -11,122 +11,55 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
     <style>
-        /* Base Styles */
         body { font-family: 'Inter', sans-serif; background-color: #111827; color: #e5e7eb; overflow: hidden; }
-        .lucide { stroke-width: 1.5; }
-        
-        /* Utility */
         .hidden-view { display: none !important; }
         .active-view { display: block !important; animation: fadeIn 0.3s ease-in-out; }
-        
         @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
-        
-        /* Pulse Animation for Status */
         .status-dot-pulse { animation: pulse 2s infinite; }
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
-
-        /* Custom Scrollbar */
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: #1f2937; }
         ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #6b7280; }
-
-        /* Login Overlay */
-        #login-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.9); z-index: 9999;
-            display: flex; justify-content: center; align-items: center;
-        }
-
-        /* Toggle Switches */
-        .valve-toggle:checked ~ .dot { transform: translateX(100%); background-color: #22c55e; }
-        
-        /* Nav Button Active State */
-        .nav-btn.active { background-color: #2563eb; color: white; border-color: #3b82f6; }
-
-        /* Table Styles */
-        .data-table th { background-color: #1f2937; padding: 8px; text-align: left; font-size: 0.8rem; color: #9ca3af; }
-        .data-table td { border-bottom: 1px solid #374151; padding: 8px; vertical-align: middle; }
-        .data-table tr:hover { background-color: #1f2937; }
-
-        /* Footer Transition */
-        #log-panel { transition: height 0.3s ease-in-out; }
-
-        /* LED Bulb Style */
+        /* LED Bulb */
         .led-bulb {
-            display: inline-block;
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            background-color: #374151; /* Default Gray */
-            border: 2px solid #1f2937;
-            box-shadow: inset 0 0 2px rgba(0,0,0,0.5);
-            transition: all 0.3s ease;
-            margin-right: 8px;
-            flex-shrink: 0;
+            display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+            background-color: #374151; border: 1px solid #1f2937;
+            box-shadow: inset 0 0 2px rgba(0,0,0,0.5); transition: all 0.3s ease; margin-right: 6px;
         }
         .led-bulb.on {
-            background-color: #00ff00; /* Bright Green */
-            box-shadow: 0 0 8px #00ff00, inset 0 0 2px rgba(255,255,255,0.8);
-            border-color: #166534;
+            background-color: #22c55e; /* Green-500 */
+            box-shadow: 0 0 6px #22c55e, inset 0 0 2px rgba(255,255,255,0.8); border-color: #166534;
         }
-        
-        /* Diag Status Light */
-        .status-light { transition: background-color 0.3s ease; }
+        .valve-toggle:checked ~ .dot { transform: translateX(100%); background-color: #22c55e; }
+        .nav-btn.active { background-color: #2563eb; color: white; border-color: #3b82f6; }
+        #log-panel { transition: height 0.3s ease-in-out; }
+        .data-table th { background-color: #1f2937; padding: 8px; text-align: left; font-size: 0.8rem; color: #9ca3af; }
+        .data-table td { border-bottom: 1px solid #374151; padding: 8px; vertical-align: middle; }
     </style>
 </head>
 <body>
 
-    <div id="login-overlay">
+    <div id="login-overlay" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:9999; display:flex; justify-content:center; align-items:center;">
         <div class="bg-gray-800 p-8 rounded-2xl shadow-2xl w-96 text-center border border-gray-700">
-            <div class="mb-6">
-                <i data-lucide="shield-check" class="w-12 h-12 text-blue-500 mx-auto mb-2"></i>
-                <h2 class="text-2xl font-bold text-white">Secure Farm Access</h2>
-                <p class="text-gray-400 text-sm">Enter Access PIN</p>
-            </div>
-            <input type="text" id="login-user" placeholder="Username" class="w-full bg-gray-700 text-white p-3 rounded-lg mb-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
-            <input type="password" id="login-pass" placeholder="PIN" class="w-full bg-gray-700 text-white p-3 rounded-lg mb-6 focus:outline-none focus:ring-2 focus:ring-blue-500">
-            <button onclick="App.attemptLogin()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-all">Access System</button>
+            <h2 class="text-2xl font-bold text-white mb-4">Secure Farm Access</h2>
+            <input type="text" id="login-user" placeholder="Username" class="w-full bg-gray-700 text-white p-3 rounded-lg mb-3">
+            <input type="password" id="login-pass" placeholder="PIN" class="w-full bg-gray-700 text-white p-3 rounded-lg mb-6">
+            <button onclick="App.attemptLogin()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg">Access System</button>
             <p id="login-error" class="text-red-500 text-sm mt-3 hidden">Invalid Credentials</p>
         </div>
     </div>
 
     <div id="app-container" class="hidden-view flex flex-col md:flex-row h-screen">
-        
         <nav class="bg-gray-900 w-full md:w-64 flex-shrink-0 border-r border-gray-800 flex flex-col z-20 shadow-xl">
             <div class="px-2 py-1 border-b border-gray-800 flex justify-between items-center bg-gray-900">
-                <div class="flex items-center space-x-2">
-                    <i data-lucide="tractor" class="w-5 h-5 text-green-500"></i>
-                    <div>
-                        <h1 class="font-bold text-white text-sm leading-none">FarmOS</h1>
-                        <div class="flex items-center space-x-1.5 mt-0.5">
-                            <div id="global-status-dot" class="w-1.5 h-1.5 rounded-full bg-red-500"></div>
-                            <span id="global-status-text" class="text-[9px] text-gray-400 uppercase font-mono leading-none">Offline</span>
-                        </div>
-                    </div>
-                </div>
-                <button onclick="location.reload()" class="bg-red-900/20 hover:bg-red-900 p-1.5 rounded text-red-400 transition-colors">
-                    <i data-lucide="log-out" class="w-4 h-4"></i>
-                </button>
+                <div class="flex items-center space-x-2"><i data-lucide="tractor" class="w-5 h-5 text-green-500"></i><div><h1 class="font-bold text-white text-sm leading-none">FarmOS</h1><div class="flex items-center space-x-1.5 mt-0.5"><div id="global-status-dot" class="w-1.5 h-1.5 rounded-full bg-red-500"></div><span id="global-status-text" class="text-[9px] text-gray-400 uppercase font-mono leading-none">Offline</span></div></div></div>
+                <button onclick="location.reload()" class="bg-red-900/20 hover:bg-red-900 p-1.5 rounded text-red-400"><i data-lucide="log-out" class="w-4 h-4"></i></button>
             </div>
-
             <div class="p-1 grid grid-cols-4 gap-1 md:flex md:flex-col md:space-y-2 md:p-4 bg-gray-900">
-                <button onclick="App.switchView('control')" class="nav-btn active flex flex-col items-center justify-center py-2 rounded-lg text-gray-400 hover:bg-gray-800 transition-colors bg-gray-800 md:bg-transparent border border-gray-700 md:border-transparent">
-                    <i data-lucide="layout-dashboard" class="w-4 h-4 mb-0.5"></i>
-                    <span class="text-[10px] font-medium leading-none">Control</span>
-                </button>
-                <button onclick="App.switchView('music')" class="nav-btn flex flex-col items-center justify-center py-2 rounded-lg text-gray-400 hover:bg-gray-800 transition-colors bg-gray-800 md:bg-transparent border border-gray-700 md:border-transparent">
-                    <i data-lucide="music" class="w-4 h-4 mb-0.5"></i>
-                    <span class="text-[10px] font-medium leading-none">Music</span>
-                </button>
-                <button onclick="App.switchView('scheduler')" class="nav-btn flex flex-col items-center justify-center py-2 rounded-lg text-gray-400 hover:bg-gray-800 transition-colors bg-gray-800 md:bg-transparent border border-gray-700 md:border-transparent">
-                    <i data-lucide="calendar" class="w-4 h-4 mb-0.5"></i>
-                    <span class="text-[10px] font-medium leading-none">Sched</span>
-                </button>
-                <button onclick="App.switchView('diag')" class="nav-btn flex flex-col items-center justify-center py-2 rounded-lg text-gray-400 hover:bg-gray-800 transition-colors bg-gray-800 md:bg-transparent border border-gray-700 md:border-transparent">
-                    <i data-lucide="wrench" class="w-4 h-4 mb-0.5"></i>
-                    <span class="text-[10px] font-medium leading-none">Diag</span>
-                </button>
+                <button onclick="App.switchView('control')" class="nav-btn active flex flex-col items-center justify-center py-2 rounded-lg text-gray-400 hover:bg-gray-800"><i data-lucide="layout-dashboard" class="w-4 h-4 mb-0.5"></i><span class="text-[10px] font-medium leading-none">Control</span></button>
+                <button onclick="App.switchView('music')" class="nav-btn flex flex-col items-center justify-center py-2 rounded-lg text-gray-400 hover:bg-gray-800"><i data-lucide="music" class="w-4 h-4 mb-0.5"></i><span class="text-[10px] font-medium leading-none">Music</span></button>
+                <button onclick="App.switchView('scheduler')" class="nav-btn flex flex-col items-center justify-center py-2 rounded-lg text-gray-400 hover:bg-gray-800"><i data-lucide="calendar" class="w-4 h-4 mb-0.5"></i><span class="text-[10px] font-medium leading-none">Sched</span></button>
+                <button onclick="App.switchView('diag')" class="nav-btn flex flex-col items-center justify-center py-2 rounded-lg text-gray-400 hover:bg-gray-800"><i data-lucide="wrench" class="w-4 h-4 mb-0.5"></i><span class="text-[10px] font-medium leading-none">Diag</span></button>
             </div>
         </nav>
 
@@ -134,114 +67,85 @@
             <main class="flex-1 p-2 md:p-6 overflow-y-auto bg-gray-800 pb-44 md:pb-60">
                 
                 <div id="view-control" class="active-view space-y-3">
-                    <h2 class="text-lg font-bold text-white mb-1 px-1 hidden md:block">Main Control</h2>
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
                         <div class="bg-gray-900 p-3 rounded-xl border border-gray-700 shadow">
-                            <h3 class="text-xs font-bold text-white mb-2 flex items-center"><i data-lucide="activity" class="mr-2 text-green-400 w-3 h-3"></i> Live Status</h3>
-                            <div class="space-y-2 text-sm">
-                                <div class="bg-gray-800 p-2 rounded flex justify-between items-center">
-                                    <span class="text-gray-400 text-xs">Running Pumps</span>
-                                    <div id="cp-running-pumps" class="text-white font-mono text-xs">None</div>
-                                </div>
-                                <div class="grid grid-cols-2 gap-2">
-                                    <div class="bg-gray-800 p-2 rounded text-center">
-                                        <i data-lucide="droplets" class="mx-auto w-4 h-4 text-blue-500 mb-1"></i>
-                                        <span class="text-gray-400 block text-[10px] uppercase">Hill Tank</span>
-                                        <span id="cp-tank-hill" class="font-bold text-white text-xs">Unknown</span>
-                                    </div>
-                                    <div class="bg-gray-800 p-2 rounded text-center">
-                                        <i data-lucide="droplets" class="mx-auto w-4 h-4 text-blue-500 mb-1"></i>
-                                        <span class="text-gray-400 block text-[10px] uppercase">House Tank</span>
-                                        <span id="cp-tank-house" class="font-bold text-white text-xs">Unknown</span>
-                                    </div>
-                                </div>
+                            <h3 class="text-xs font-bold text-white mb-2">Live Status</h3>
+                            <div class="bg-gray-800 p-2 rounded mb-2 text-xs text-gray-400">Running: <span id="cp-running-pumps" class="text-white font-mono">None</span></div>
+                            <div class="grid grid-cols-2 gap-2 text-center">
+                                <div class="bg-gray-800 p-2 rounded"><span class="text-[10px] block text-gray-400">HILL TANK</span><span id="cp-tank-hill" class="font-bold text-white text-xs">Unknown</span></div>
+                                <div class="bg-gray-800 p-2 rounded"><span class="text-[10px] block text-gray-400">HOUSE TANK</span><span id="cp-tank-house" class="font-bold text-white text-xs">Unknown</span></div>
                             </div>
                         </div>
 
                         <div class="bg-gray-900 p-3 rounded-xl border border-gray-700 shadow">
-                            <h3 class="text-xs font-bold text-white mb-2 flex items-center"><i data-lucide="sun" class="mr-2 text-yellow-400 w-3 h-3"></i> Solar Pumps</h3>
+                            <h3 class="text-xs font-bold text-white mb-2">Solar Pumps</h3>
                             <div class="grid grid-cols-2 gap-2">
                                 <div>
                                     <h4 class="text-[10px] uppercase text-gray-500 font-bold mb-1">Own Solar</h4>
-                                    <div id="cp-own-solar-list" class="space-y-1"></div>
-                                    <button onclick="Mqtt.send('stop_string', {source: 'own_solar'})" class="w-full mt-2 bg-red-900/40 hover:bg-red-900 text-red-200 text-[10px] py-1 rounded border border-red-800">STOP STRING</button>
+                                    <div class="space-y-1">
+                                        <button onclick="Mqtt.send('start_pump', {pump:'gate_bore', source:'own_solar'})" class="w-full bg-gray-700 hover:bg-gray-600 text-white py-1 px-2 rounded text-[10px] text-left border border-gray-600 flex items-center"><span id="bulb-pump-own_solar-gate_bore" class="led-bulb"></span> Gate Bore</button>
+                                        <button onclick="Mqtt.send('start_pump', {pump:'talaab_bore', source:'own_solar'})" class="w-full bg-gray-700 hover:bg-gray-600 text-white py-1 px-2 rounded text-[10px] text-left border border-gray-600 flex items-center"><span id="bulb-pump-own_solar-talaab_bore" class="led-bulb"></span> Talaab Bore</button>
+                                        <button onclick="Mqtt.send('start_pump', {pump:'pandubbi', source:'own_solar'})" class="w-full bg-gray-700 hover:bg-gray-600 text-white py-1 px-2 rounded text-[10px] text-left border border-gray-600 flex items-center"><span id="bulb-pump-own_solar-pandubbi" class="led-bulb"></span> Pandubbi</button>
+                                        <button onclick="Mqtt.send('start_pump', {pump:'sarkari', source:'own_solar'})" class="w-full bg-gray-700 hover:bg-gray-600 text-white py-1 px-2 rounded text-[10px] text-left border border-gray-600 flex items-center"><span id="bulb-pump-own_solar-sarkari" class="led-bulb"></span> Sarkari</button>
+                                        <button onclick="Mqtt.send('start_pump', {pump:'middle', source:'own_solar'})" class="w-full bg-gray-700 hover:bg-gray-600 text-white py-1 px-2 rounded text-[10px] text-left border border-gray-600 flex items-center"><span id="bulb-pump-own_solar-middle" class="led-bulb"></span> Middle</button>
+                                    </div>
+                                    <button onclick="Mqtt.send('stop_string', {source: 'own_solar'})" class="w-full mt-2 bg-red-900/40 hover:bg-red-900 text-red-200 text-[10px] py-1 rounded border border-red-800">STOP ALL</button>
                                 </div>
                                 <div>
                                     <h4 class="text-[10px] uppercase text-gray-500 font-bold mb-1">Sarkari Solar</h4>
-                                    <div id="cp-sarkari-solar-list" class="space-y-1"></div>
-                                    <button onclick="Mqtt.send('stop_string', {source: 'sarkari_solar'})" class="w-full mt-2 bg-red-900/40 hover:bg-red-900 text-red-200 text-[10px] py-1 rounded border border-red-800">STOP STRING</button>
+                                    <div class="space-y-1">
+                                        <button onclick="Mqtt.send('start_pump', {pump:'gate_bore', source:'sarkari_solar'})" class="w-full bg-gray-700 hover:bg-gray-600 text-white py-1 px-2 rounded text-[10px] text-left border border-gray-600 flex items-center"><span id="bulb-pump-sarkari_solar-gate_bore" class="led-bulb"></span> Gate Bore</button>
+                                        <button onclick="Mqtt.send('start_pump', {pump:'talaab_bore', source:'sarkari_solar'})" class="w-full bg-gray-700 hover:bg-gray-600 text-white py-1 px-2 rounded text-[10px] text-left border border-gray-600 flex items-center"><span id="bulb-pump-sarkari_solar-talaab_bore" class="led-bulb"></span> Talaab Bore</button>
+                                        <button onclick="Mqtt.send('start_pump', {pump:'pandubbi', source:'sarkari_solar'})" class="w-full bg-gray-700 hover:bg-gray-600 text-white py-1 px-2 rounded text-[10px] text-left border border-gray-600 flex items-center"><span id="bulb-pump-sarkari_solar-pandubbi" class="led-bulb"></span> Pandubbi</button>
+                                        <button onclick="Mqtt.send('start_pump', {pump:'sarkari', source:'sarkari_solar'})" class="w-full bg-gray-700 hover:bg-gray-600 text-white py-1 px-2 rounded text-[10px] text-left border border-gray-600 flex items-center"><span id="bulb-pump-sarkari_solar-sarkari" class="led-bulb"></span> Sarkari</button>
+                                        <button onclick="Mqtt.send('start_pump', {pump:'middle', source:'sarkari_solar'})" class="w-full bg-gray-700 hover:bg-gray-600 text-white py-1 px-2 rounded text-[10px] text-left border border-gray-600 flex items-center"><span id="bulb-pump-sarkari_solar-middle" class="led-bulb"></span> Middle</button>
+                                    </div>
+                                    <button onclick="Mqtt.send('stop_string', {source: 'sarkari_solar'})" class="w-full mt-2 bg-red-900/40 hover:bg-red-900 text-red-200 text-[10px] py-1 rounded border border-red-800">STOP ALL</button>
                                 </div>
                             </div>
                         </div>
-                        
+
                         <div class="bg-gray-900 p-3 rounded-xl border border-gray-700 shadow">
                             <h3 class="text-xs font-bold text-white mb-2">Pumping Valves</h3>
-                            <div id="cp-valves-list" class="space-y-2"></div>
+                            <div class="space-y-2">
+                                <label class="flex justify-between items-center bg-gray-800 p-2 rounded cursor-pointer border border-gray-700">
+                                    <div class="flex items-center"><span id="bulb-valve-bore_valves" class="led-bulb"></span><span class="text-gray-300 font-medium capitalize text-xs">Bore Valves</span></div>
+                                    <div class="relative w-10 h-5"><input type="checkbox" class="sr-only valve-toggle cp-valve-check" data-name="bore_valves"><div class="block bg-gray-600 w-full h-full rounded-full"></div><div class="dot absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition-transform"></div></div>
+                                </label>
+                                <label class="flex justify-between items-center bg-gray-800 p-2 rounded cursor-pointer border border-gray-700">
+                                    <div class="flex items-center"><span id="bulb-valve-talaab_valves" class="led-bulb"></span><span class="text-gray-300 font-medium capitalize text-xs">Talaab Valves</span></div>
+                                    <div class="relative w-10 h-5"><input type="checkbox" class="sr-only valve-toggle cp-valve-check" data-name="talaab_valves"><div class="block bg-gray-600 w-full h-full rounded-full"></div><div class="dot absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition-transform"></div></div>
+                                </label>
+                                <label class="flex justify-between items-center bg-gray-800 p-2 rounded cursor-pointer border border-gray-700">
+                                    <div class="flex items-center"><span id="bulb-valve-pandubbi_valves" class="led-bulb"></span><span class="text-gray-300 font-medium capitalize text-xs">Pandubbi Valves</span></div>
+                                    <div class="relative w-10 h-5"><input type="checkbox" class="sr-only valve-toggle cp-valve-check" data-name="pandubbi_valves"><div class="block bg-gray-600 w-full h-full rounded-full"></div><div class="dot absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition-transform"></div></div>
+                                </label>
+                                <label class="flex justify-between items-center bg-gray-800 p-2 rounded cursor-pointer border border-gray-700">
+                                    <div class="flex items-center"><span id="bulb-valve-farm_house_valves" class="led-bulb"></span><span class="text-gray-300 font-medium capitalize text-xs">Farm House Valves</span></div>
+                                    <div class="relative w-10 h-5"><input type="checkbox" class="sr-only valve-toggle cp-valve-check" data-name="farm_house_valves"><div class="block bg-gray-600 w-full h-full rounded-full"></div><div class="dot absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition-transform"></div></div>
+                                </label>
+                            </div>
                             <button onclick="ControlPanel.updateValves()" class="w-full mt-3 bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 rounded text-xs">Update Valves</button>
                         </div>
+
                         <div class="bg-gray-900 p-3 rounded-xl border border-gray-700 shadow">
                             <h3 class="text-xs font-bold text-white mb-2">Irrigation Areas</h3>
-                            <div id="cp-irrigation-list" class="space-y-2"></div>
+                            <div class="space-y-2">
+                                <label class="flex justify-between items-center bg-gray-800 p-2 rounded cursor-pointer border border-gray-700">
+                                    <div class="flex items-center"><span id="bulb-valve-upper_hill_mango" class="led-bulb"></span><span class="text-gray-300 font-medium capitalize text-xs">Upper Hill Mango</span></div>
+                                    <div class="relative w-10 h-5"><input type="checkbox" class="sr-only valve-toggle cp-irrig-check" data-name="upper_hill_mango"><div class="block bg-gray-600 w-full h-full rounded-full"></div><div class="dot absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition-transform"></div></div>
+                                </label>
+                                <label class="flex justify-between items-center bg-gray-800 p-2 rounded cursor-pointer border border-gray-700">
+                                    <div class="flex items-center"><span id="bulb-valve-lower_hill_mango" class="led-bulb"></span><span class="text-gray-300 font-medium capitalize text-xs">Lower Hill Mango</span></div>
+                                    <div class="relative w-10 h-5"><input type="checkbox" class="sr-only valve-toggle cp-irrig-check" data-name="lower_hill_mango"><div class="block bg-gray-600 w-full h-full rounded-full"></div><div class="dot absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition-transform"></div></div>
+                                </label>
+                                <label class="flex justify-between items-center bg-gray-800 p-2 rounded cursor-pointer border border-gray-700">
+                                    <div class="flex items-center"><span id="bulb-valve-lemon" class="led-bulb"></span><span class="text-gray-300 font-medium capitalize text-xs">Lemon</span></div>
+                                    <div class="relative w-10 h-5"><input type="checkbox" class="sr-only valve-toggle cp-irrig-check" data-name="lemon"><div class="block bg-gray-600 w-full h-full rounded-full"></div><div class="dot absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition-transform"></div></div>
+                                </label>
+                            </div>
                             <button onclick="ControlPanel.updateIrrigation()" class="w-full mt-3 bg-green-600 hover:bg-green-700 text-white font-bold py-2 rounded text-xs">Update Irrigation</button>
                         </div>
-                    </div>
-                </div>
-
-                <div id="view-music" class="hidden-view space-y-3 max-w-4xl mx-auto">
-                    <div class="bg-gray-900 p-3 rounded-xl border border-gray-700 text-center">
-                        <h2 class="text-sm font-bold text-white mb-1">Now Playing</h2>
-                        <div id="music-title" class="text-lg font-bold text-blue-400 mb-0 truncate">Nothing Playing</div>
-                        <div id="music-status" class="text-[10px] text-gray-500 mb-3">Stopped</div>
-                        <div class="flex items-center space-x-3 mb-3 bg-gray-800 p-2 rounded-lg">
-                            <span>🔈</span><input type="range" min="0" max="100" value="100" class="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer" onchange="Mqtt.send('set_volume', {level: this.value})"><span>🔊</span>
-                        </div>
-                        <div class="grid grid-cols-4 gap-2 mb-2">
-                            <button onclick="Mqtt.send('prev_song')" class="bg-gray-700 hover:bg-gray-600 p-2 rounded">|&lt;</button>
-                            <button onclick="Mqtt.send('seek_relative', {seconds: -10})" class="bg-gray-700 hover:bg-gray-600 p-2 rounded">-10s</button>
-                            <button onclick="Mqtt.send('seek_relative', {seconds: 10})" class="bg-gray-700 hover:bg-gray-600 p-2 rounded">+10s</button>
-                            <button onclick="Mqtt.send('next_song')" class="bg-gray-700 hover:bg-gray-600 p-2 rounded">&gt;|</button>
-                        </div>
-                        <div class="flex gap-2">
-                            <button id="btn-shuffle" onclick="MusicPlayer.toggleShuffle()" class="flex-1 bg-gray-700 p-2 rounded text-[10px] font-bold">🔀 Shuffle</button>
-                            <button onclick="Mqtt.send('stop_music')" class="flex-[2] bg-red-600 hover:bg-red-700 text-white p-2 rounded text-[10px] font-bold">STOP ALL</button>
-                        </div>
-                    </div>
-                    
-                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                        <div class="bg-gray-900 p-3 rounded-xl border border-gray-700">
-                             <div class="flex justify-between items-center mb-2"><h3 class="font-bold text-xs">Queue</h3><button onclick="Mqtt.send('clear_queue')" class="text-red-400 text-[10px]">Clear</button></div>
-                             <div class="h-32 overflow-y-auto"><table class="w-full data-table"><tbody id="music-queue-list"></tbody></table></div>
-                        </div>
-                        <div class="bg-gray-900 p-3 rounded-xl border border-gray-700">
-                             <h3 class="font-bold text-xs mb-2">Playlists</h3>
-                             <div class="flex gap-2 mb-2"><select id="music-playlist-select" class="flex-1 bg-gray-800 text-white p-1 rounded text-[10px]"><option>Loading...</option></select><button onclick="MusicPlayer.playSelected()" class="bg-blue-600 px-3 rounded text-[10px]">Play</button></div>
-                             <div class="bg-gray-800 p-2 rounded"><input type="text" id="new-playlist-name" placeholder="New Playlist..." class="w-full bg-gray-900 text-white p-1 rounded text-[10px] mb-1"><button onclick="MusicPlayer.createPlaylist()" class="w-full bg-green-600 text-[10px] rounded py-1">Create</button></div>
-                        </div>
-                     </div>
-                     <div class="bg-gray-900 p-3 rounded-xl border border-gray-700">
-                        <div class="flex justify-between items-center mb-2">
-                             <h3 class="font-bold text-xs">Library</h3>
-                             <div class="flex gap-1"><button onclick="MusicPlayer.playAll(false)" class="bg-purple-600 px-2 py-1 rounded text-[10px]">Seq</button><button onclick="MusicPlayer.playAll(true)" class="bg-pink-600 px-2 py-1 rounded text-[10px]">Mix</button><button onclick="Mqtt.send('get_library')" class="bg-gray-700 px-2 py-1 rounded text-[10px]">↻</button></div>
-                        </div>
-                        <div class="max-h-64 overflow-y-auto"><table class="w-full data-table text-[10px]"><tbody id="music-library-list"></tbody></table></div>
-                     </div>
-                </div>
-
-                <div id="view-scheduler" class="hidden-view space-y-3 max-w-3xl mx-auto">
-                    <div class="bg-gray-900 p-3 rounded-xl border border-gray-700">
-                        <h2 class="text-sm font-bold text-white mb-2">New Task</h2>
-                        <div class="grid grid-cols-2 gap-2 mb-2">
-                            <div><label class="text-[10px] text-gray-400">Type</label><select id="sched-type" onchange="Scheduler.updateDeviceList()" class="w-full bg-gray-800 p-1.5 rounded border border-gray-600 text-xs"><option value="pump">Pump</option><option value="valve">Valve</option><option value="music">Music</option></select></div>
-                            <div><label class="text-[10px] text-gray-400">Device</label><select id="sched-name" class="w-full bg-gray-800 p-1.5 rounded border border-gray-600 text-xs"></select></div>
-                            <div id="sched-source-wrapper"><label class="text-[10px] text-gray-400">Source</label><select id="sched-source" class="w-full bg-gray-800 p-1.5 rounded border border-gray-600 text-xs"><option value="own_solar">Own Solar</option><option value="sarkari_solar">Sarkari Solar</option></select></div>
-                            <div><label class="text-[10px] text-gray-400">Start</label><input type="datetime-local" id="sched-time" class="w-full bg-gray-800 p-1.5 rounded border border-gray-600 text-xs"></div>
-                            <div class="col-span-2"><label class="text-[10px] text-gray-400">Duration (Min)</label><input type="number" id="sched-duration" value="60" class="w-full bg-gray-800 p-1.5 rounded border border-gray-600 text-xs"></div>
-                        </div>
-                        <button onclick="Scheduler.saveTask()" class="w-full bg-blue-600 text-white font-bold py-1.5 rounded text-xs">Schedule</button>
-                    </div>
-                    <div class="bg-gray-900 p-3 rounded-xl border border-gray-700">
-                        <h3 class="font-bold text-xs mb-2">Active Tasks <button onclick="Mqtt.send('get_schedule')" class="text-blue-400 text-xs ml-2">↻</button></h3>
-                        <div class="overflow-x-auto"><table class="w-full text-left text-[10px] text-gray-400"><thead class="bg-gray-800"><tr><th class="p-2">Device</th><th class="p-2">Start</th><th class="p-2">Status</th><th class="p-2 text-right">X</th></tr></thead><tbody id="sched-list"></tbody></table></div>
                     </div>
                 </div>
 
@@ -249,42 +153,36 @@
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
                         <div class="bg-gray-900 p-3 rounded-xl border border-gray-700">
                             <h3 class="text-xs font-bold mb-2">Relays 1-15</h3>
-                            <div id="diag-relays-1" class="space-y-1 max-h-80 overflow-y-auto"></div>
+                            <div id="diag-relays-1" class="space-y-1 max-h-80 overflow-y-auto">
+                                </div>
                         </div>
                         <div class="bg-gray-900 p-3 rounded-xl border border-gray-700">
                             <h3 class="text-xs font-bold mb-2">Relays 16-30</h3>
                             <div id="diag-relays-2" class="space-y-1 max-h-80 overflow-y-auto"></div>
                         </div>
                     </div>
-                    
                     <div class="bg-gray-900 p-3 rounded-xl border border-gray-700">
-                        <h3 class="text-xs font-bold mb-2">IR Remote Commands</h3>
-                        <div id="ir-controls" class="grid grid-cols-2 md:grid-cols-4 gap-2"></div>
+                        <h3 class="text-xs font-bold mb-2">IR Remote</h3>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+                            <button onclick="Mqtt.send('send_ir', {signal: 'ON'})" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 rounded text-xs">ON</button>
+                            <button onclick="Mqtt.send('send_ir', {signal: 'OFF'})" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 rounded text-xs">OFF</button>
+                            <button onclick="Mqtt.send('send_ir', {signal: 'BUTTON_1'})" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 rounded text-xs">BTN 1</button>
+                            <button onclick="Mqtt.send('send_ir', {signal: 'BUTTON_4'})" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 rounded text-xs">BTN 4</button>
+                        </div>
                     </div>
                 </div>
+
+                <div id="view-music" class="hidden-view space-y-3 max-w-4xl mx-auto"><div class="bg-gray-900 p-3 rounded-xl border border-gray-700 text-center"><h2 class="text-sm font-bold text-white mb-1">Now Playing</h2><div id="music-title" class="text-lg font-bold text-blue-400 mb-0 truncate">Nothing</div><div id="music-status" class="text-[10px] text-gray-500 mb-3">Stopped</div><div class="flex items-center space-x-3 mb-3 bg-gray-800 p-2 rounded-lg"><span>🔈</span><input type="range" min="0" max="100" value="100" class="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer" onchange="Mqtt.send('set_volume', {level: this.value})"><span>🔊</span></div><div class="grid grid-cols-4 gap-2 mb-2"><button onclick="Mqtt.send('prev_song')" class="bg-gray-700 p-2 rounded">|&lt;</button><button onclick="Mqtt.send('seek_relative', {seconds: -10})" class="bg-gray-700 p-2 rounded">-10s</button><button onclick="Mqtt.send('seek_relative', {seconds: 10})" class="bg-gray-700 p-2 rounded">+10s</button><button onclick="Mqtt.send('next_song')" class="bg-gray-700 p-2 rounded">&gt;|</button></div><div class="flex gap-2"><button id="btn-shuffle" onclick="MusicPlayer.toggleShuffle()" class="flex-1 bg-gray-700 p-2 rounded text-[10px] font-bold">🔀 Shuffle</button><button onclick="Mqtt.send('stop_music')" class="flex-[2] bg-red-600 hover:bg-red-700 text-white p-2 rounded text-[10px] font-bold">STOP ALL</button></div></div><div class="grid grid-cols-1 lg:grid-cols-2 gap-3"><div class="bg-gray-900 p-3 rounded-xl border border-gray-700"><div class="flex justify-between items-center mb-2"><h3 class="font-bold text-xs">Queue</h3><button onclick="Mqtt.send('clear_queue')" class="text-red-400 text-[10px]">Clear</button></div><div class="h-32 overflow-y-auto"><table class="w-full data-table"><tbody id="music-queue-list"></tbody></table></div></div><div class="bg-gray-900 p-3 rounded-xl border border-gray-700"><h3 class="font-bold text-xs mb-2">Playlists</h3><div class="flex gap-2 mb-2"><select id="music-playlist-select" class="flex-1 bg-gray-800 text-white p-1 rounded text-[10px]"><option>Loading...</option></select><button onclick="MusicPlayer.playSelected()" class="bg-blue-600 px-3 rounded text-[10px]">Play</button></div><div class="bg-gray-800 p-2 rounded"><input type="text" id="new-playlist-name" placeholder="New Playlist..." class="w-full bg-gray-900 text-white p-1 rounded text-[10px] mb-1"><button onclick="MusicPlayer.createPlaylist()" class="w-full bg-green-600 text-[10px] rounded py-1">Create</button></div></div></div><div class="bg-gray-900 p-3 rounded-xl border border-gray-700"><div class="flex justify-between items-center mb-2"><h3 class="font-bold text-xs">Library</h3><div class="flex gap-1"><button onclick="MusicPlayer.playAll(false)" class="bg-purple-600 px-2 py-1 rounded text-[10px]">Seq</button><button onclick="MusicPlayer.playAll(true)" class="bg-pink-600 px-2 py-1 rounded text-[10px]">Mix</button><button onclick="Mqtt.send('get_library')" class="bg-gray-700 px-2 py-1 rounded text-[10px]">↻</button></div></div><div class="max-h-64 overflow-y-auto"><table class="w-full data-table text-[10px]"><tbody id="music-library-list"></tbody></table></div></div></div>
+                <div id="view-scheduler" class="hidden-view space-y-3 max-w-3xl mx-auto"><div class="bg-gray-900 p-3 rounded-xl border border-gray-700"><h2 class="text-sm font-bold text-white mb-2">New Task</h2><div class="grid grid-cols-2 gap-2 mb-2"><div><label class="text-[10px] text-gray-400">Type</label><select id="sched-type" onchange="Scheduler.updateDeviceList()" class="w-full bg-gray-800 p-1.5 rounded border border-gray-600 text-xs"><option value="pump">Pump</option><option value="valve">Valve</option><option value="music">Music</option></select></div><div><label class="text-[10px] text-gray-400">Device</label><select id="sched-name" class="w-full bg-gray-800 p-1.5 rounded border border-gray-600 text-xs"></select></div><div id="sched-source-wrapper"><label class="text-[10px] text-gray-400">Source</label><select id="sched-source" class="w-full bg-gray-800 p-1.5 rounded border border-gray-600 text-xs"><option value="own_solar">Own Solar</option><option value="sarkari_solar">Sarkari Solar</option></select></div><div><label class="text-[10px] text-gray-400">Start</label><input type="datetime-local" id="sched-time" class="w-full bg-gray-800 p-1.5 rounded border border-gray-600 text-xs"></div><div class="col-span-2"><label class="text-[10px] text-gray-400">Duration</label><input type="number" id="sched-duration" value="60" class="w-full bg-gray-800 p-1.5 rounded border border-gray-600 text-xs"></div></div><button onclick="Scheduler.saveTask()" class="w-full bg-blue-600 text-white font-bold py-1.5 rounded text-xs">Schedule</button></div><div class="bg-gray-900 p-3 rounded-xl border border-gray-700"><h3 class="font-bold text-xs mb-2">Active Tasks <button onclick="Mqtt.send('get_schedule')" class="text-blue-400 text-xs ml-2">↻</button></h3><div class="overflow-x-auto"><table class="w-full text-left text-[10px] text-gray-400"><thead class="bg-gray-800"><tr><th class="p-2">Device</th><th class="p-2">Start</th><th class="p-2">Status</th><th class="p-2 text-right">X</th></tr></thead><tbody id="sched-list"></tbody></table></div></div></div>
 
             </main>
         </div>
     </div>
 
-    <div id="log-panel" class="fixed bottom-0 left-0 w-full bg-gray-900 border-t border-gray-700 z-50 flex flex-col h-40 shadow-[0_-5px_15px_rgba(0,0,0,0.5)]">
-        <div class="flex justify-between items-center px-4 py-2 bg-gray-800 border-b border-gray-700 cursor-pointer hover:bg-gray-700 transition-colors" onclick="App.toggleLogHeight()">
-            <div class="flex items-center space-x-2">
-                <i data-lucide="terminal" class="w-4 h-4 text-green-400"></i>
-                <span class="text-xs font-bold text-gray-300">SYSTEM LOGS</span>
-            </div>
-            <div class="flex items-center space-x-3">
-                <button onclick="event.stopPropagation(); Logger.clear()" class="text-[10px] text-red-400 border border-red-900 px-2 py-0.5 rounded hover:bg-red-900">CLEAR</button>
-                <i id="log-chevron" data-lucide="chevron-down" class="w-4 h-4 text-gray-400 transition-transform"></i>
-            </div>
-        </div>
-        <pre id="universal-log" class="flex-1 p-3 overflow-y-auto font-mono text-xs text-green-400 whitespace-pre-wrap break-words bg-black/50"></pre>
-    </div>
-
+    <div id="log-panel" class="fixed bottom-0 left-0 w-full bg-gray-900 border-t border-gray-700 z-50 flex flex-col h-40 shadow-[0_-5px_15px_rgba(0,0,0,0.5)]"><div class="flex justify-between items-center px-4 py-2 bg-gray-800 border-b border-gray-700 cursor-pointer hover:bg-gray-700 transition-colors" onclick="App.toggleLogHeight()"><div class="flex items-center space-x-2"><i data-lucide="terminal" class="w-4 h-4 text-green-400"></i><span class="text-xs font-bold text-gray-300">SYSTEM LOGS</span></div><div class="flex items-center space-x-3"><button onclick="event.stopPropagation(); Logger.clear()" class="text-[10px] text-red-400 border border-red-900 px-2 py-0.5 rounded hover:bg-red-900">CLEAR</button><i id="log-chevron" data-lucide="chevron-down" class="w-4 h-4 text-gray-400 transition-transform"></i></div></div><pre id="universal-log" class="flex-1 p-3 overflow-y-auto font-mono text-xs text-green-400 whitespace-pre-wrap break-words bg-black/50"></pre></div>
     <div id="toast" class="fixed bottom-44 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white py-2 px-6 rounded-full shadow-lg opacity-0 transition-opacity duration-300 pointer-events-none z-50 text-xs">Action Sent</div>
 
     <script>
-        // CONFIG & MAPPING
         const CONSTANTS = {
             BROKER: "wss://t7ef11fa.ala.asia-southeast1.emqxsl.com:8084/mqtt",
             AUTH_MAP: { "admin": { u: "c2tw", p: "QnViYmxlQDEw" }, "farm":  { u: "c2tw", p: "QnViYmxlQDEw" } },
@@ -305,23 +203,9 @@
                 pumps_own_solar: { "gate_bore": 11, "talaab_bore": 12, "pandubbi": 13, "sarkari": 14, "middle": 15 },
                 pumps_sarkari_solar: { "gate_bore": 21, "talaab_bore": 22, "pandubbi": 23, "sarkari": 24, "middle": 25 },
                 master_off: { "own_solar": 26, "sarkari_solar": 28 } 
-            },
-            SYSTEM_INPUTS: {
-                // Defines inputs for logic mapping
-                "FLOAT_VALVE_HILL": "M1-0", "FLOAT_VALVE_HOUSE": "M1-1",
-                "FEEDBACK_own_solar_gate_bore": "M1-2", "FEEDBACK_own_solar_talaab_bore": "M1-3",
-                "FEEDBACK_own_solar_pandubbi": "M1-4", "FEEDBACK_own_solar_sarkari": "M1-5", "FEEDBACK_own_solar_middle": "M1-6",
-                "FEEDBACK_sarkari_solar_gate_bore": "M1-7", "FEEDBACK_sarkari_solar_talaab_bore": "M1-8",
-                "FEEDBACK_sarkari_solar_pandubbi": "M1-9", "FEEDBACK_sarkari_solar_sarkari": "M1-10", "FEEDBACK_sarkari_solar_middle": "M1-11",
-                "VALVE_FEEDBACK_bore_valves": "M1-12", "VALVE_FEEDBACK_talaab_valves": "M1-13",
-                "VALVE_FEEDBACK_pandubbi_valves": "M1-14", "VALVE_FEEDBACK_farm_house_valves": "M1-15",
-                "PHASE_INDICATOR_OWN_SOLAR_1PH": "M2-0", "PHASE_INDICATOR_SARKARI_SOLAR_1PH": "M2-1",
-                "VALVE_FEEDBACK_upper_hill_mango": "M2-2", "VALVE_FEEDBACK_lower_hill_mango": "M2-3", "VALVE_FEEDBACK_lemon": "M2-4",
-                "IR_TX": 18, "IR_RX": 24 
             }
         };
 
-        // Helper maps for diagnostics
         let channelToInputMap = {};
         let reverseRelayMap = {};
 
@@ -394,12 +278,7 @@
                         const msgStr = payload.toString();
                         if (topic === CONSTANTS.TOPICS.LOGS) { Logger.log("LOG: " + msgStr); return; }
                         const data = JSON.parse(msgStr);
-                        if (topic === CONSTANTS.TOPICS.STATUS) { 
-                            ControlPanel.updateUI(data); 
-                            Diagnostics.updateUI(data); 
-                            MusicPlayer.updateUI(data); 
-                            Logger.log("Status Updated"); 
-                        } 
+                        if (topic === CONSTANTS.TOPICS.STATUS) { ControlPanel.updateUI(data); Diagnostics.updateUI(data); MusicPlayer.updateUI(data); Logger.log("Status Updated"); } 
                         else if (topic === CONSTANTS.TOPICS.PLAYLISTS) { DATA.playlists = data; MusicPlayer.renderPlaylists(data); } 
                         else if (topic === CONSTANTS.TOPICS.SCHEDULE) { Scheduler.renderTable(data); } 
                         else if (topic === CONSTANTS.TOPICS.LIBRARY) { DATA.libraryCache = data; MusicPlayer.renderLibrary(data); } 
@@ -422,43 +301,11 @@
             }
         };
 
+        // CONTROL PANEL: RENDER REMOVED, UPDATES ONLY
         const ControlPanel = {
-            init: () => { lucide.createIcons(); ControlPanel.renderButtons(); },
-            renderButtons: () => {
-                const ownDiv = document.getElementById('cp-own-solar-list');
-                const govDiv = document.getElementById('cp-sarkari-solar-list');
-                const valveDiv = document.getElementById('cp-valves-list');
-                const irrigDiv = document.getElementById('cp-irrigation-list');
-                
-                // Clear existing
-                ownDiv.innerHTML = ""; govDiv.innerHTML = ""; valveDiv.innerHTML = ""; irrigDiv.innerHTML = "";
-
-                DATA.pumps.forEach(p => {
-                    const btn = (source) => `<button onclick="Mqtt.send('start_pump', {pump: '${p}', source: '${source}'})" class="w-full bg-gray-700 hover:bg-gray-600 text-white py-2 px-2 rounded text-xs mb-1 text-left capitalize truncate border border-gray-600 flex items-center">
-                        <span id="bulb-pump-${source}-${p}" class="led-bulb"></span>
-                        ⚡ ${p.replace(/_/g,' ')}
-                    </button>`;
-                    ownDiv.innerHTML += btn('own_solar'); govDiv.innerHTML += btn('sarkari_solar');
-                });
-
-                DATA.valves.forEach(v => {
-                    valveDiv.innerHTML += `<label class="flex justify-between items-center bg-gray-800 p-2 rounded cursor-pointer border border-gray-700">
-                        <div class="flex items-center">
-                             <span id="bulb-valve-${v}" class="led-bulb"></span>
-                             <span class="text-gray-300 font-medium capitalize text-xs">${v.replace(/_/g,' ')}</span>
-                        </div>
-                        <div class="relative w-10 h-5"><input type="checkbox" class="sr-only valve-toggle cp-valve-check" data-name="${v}"><div class="block bg-gray-600 w-full h-full rounded-full"></div><div class="dot absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition-transform"></div></div></label>`;
-                });
-                
-                DATA.irrigation.forEach(i => {
-                    irrigDiv.innerHTML += `<label class="flex justify-between items-center bg-gray-800 p-2 rounded cursor-pointer border border-gray-700">
-                        <div class="flex items-center">
-                             <span id="bulb-valve-${i}" class="led-bulb"></span>
-                             <span class="text-gray-300 font-medium capitalize text-xs">${i.replace(/_/g,' ')}</span>
-                        </div>
-                        <div class="relative w-10 h-5"><input type="checkbox" class="sr-only valve-toggle cp-irrig-check" data-name="${i}"><div class="block bg-gray-600 w-full h-full rounded-full"></div><div class="dot absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition-transform"></div></div></label>`;
-                });
-            },
+            init: () => { lucide.createIcons(); },
+            updateValves: () => { const state = {}; document.querySelectorAll('.cp-valve-check').forEach(cb => state[cb.dataset.name] = cb.checked); Mqtt.send('set_pumping_valves', {valves: state}); },
+            updateIrrigation: () => { const state = {}; document.querySelectorAll('.cp-irrig-check').forEach(cb => state[cb.dataset.name] = cb.checked); Mqtt.send('set_irrigation', {areas: state}); },
             updateUI: (data) => {
                 const pumpList = document.getElementById('cp-running-pumps');
                 if (data.running_pumps && data.running_pumps.length > 0 && data.running_pumps !== "None") {
@@ -503,40 +350,36 @@
                         if(bulb) { if(isActive) bulb.classList.add('on'); else bulb.classList.remove('on'); }
                     });
                 }
-            },
-            updateValves: () => { const state = {}; document.querySelectorAll('.cp-valve-check').forEach(cb => state[cb.dataset.name] = cb.checked); Mqtt.send('set_pumping_valves', {valves: state}); },
-            updateIrrigation: () => { const state = {}; document.querySelectorAll('.cp-irrig-check').forEach(cb => state[cb.dataset.name] = cb.checked); Mqtt.send('set_irrigation', {areas: state}); }
+            }
         };
 
         const Diagnostics = {
             buildMaps: () => {
                 const relayConfig = DATA.RELAY_CHANNELS;
-                const inputConfig = DATA.SYSTEM_INPUTS;
-                
                 for (const name in relayConfig.power_control) { reverseRelayMap[relayConfig.power_control[name]] = name; }
                 for (const name in relayConfig.pumping_valves) {
                     const ch = relayConfig.pumping_valves[name];
                     reverseRelayMap[ch] = name;
                     const feedback = `VALVE_FEEDBACK_${name}`;
-                    if (inputConfig[feedback]) channelToInputMap[ch] = feedback;
+                    channelToInputMap[ch] = feedback;
                 }
                 for (const name in relayConfig.irrigation_valves) {
                     const ch = relayConfig.irrigation_valves[name];
                     reverseRelayMap[ch] = name;
                     const feedback = `VALVE_FEEDBACK_${name}`;
-                    if (inputConfig[feedback]) channelToInputMap[ch] = feedback;
+                    channelToInputMap[ch] = feedback;
                 }
                 for (const name in relayConfig.pumps_own_solar) {
                     const ch = relayConfig.pumps_own_solar[name];
                     reverseRelayMap[ch] = `OWN: ${name}`;
                     const feedback = `FEEDBACK_own_solar_${name}`;
-                    if (inputConfig[feedback]) channelToInputMap[ch] = feedback;
+                    channelToInputMap[ch] = feedback;
                 }
                 for (const name in relayConfig.pumps_sarkari_solar) {
                     const ch = relayConfig.pumps_sarkari_solar[name];
                     reverseRelayMap[ch] = `SARKARI: ${name}`;
                     const feedback = `FEEDBACK_sarkari_solar_${name}`;
-                    if (inputConfig[feedback]) channelToInputMap[ch] = feedback;
+                    channelToInputMap[ch] = feedback;
                 }
                 for (const name in relayConfig.master_off) { reverseRelayMap[relayConfig.master_off[name]] = `MASTER OFF: ${name}`; }
             },
@@ -556,16 +399,6 @@
                         </div>`;
                 };
 
-                // --- IR INITIALIZATION ---
-                const irControls = document.getElementById('ir-controls');
-                if (irControls) {
-                    irControls.innerHTML = "";
-                    ["ON", "OFF", "BUTTON_1", "BUTTON_4"].forEach(cmd => {
-                        irControls.innerHTML += `<button onclick='Mqtt.send("send_ir", {signal: "${cmd}"})' class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded text-xs shadow">${cmd}</button>`;
-                    });
-                }
-
-                // FIXED IDs HERE (diag-relays-1 and diag-relays-2)
                 const relayList1 = document.getElementById('diag-relays-1');
                 const relayList2 = document.getElementById('diag-relays-2');
                 
@@ -604,6 +437,93 @@
                     statusLight.classList.toggle('shadow-green-500/50', !!isTrulyOn);
                     statusLight.classList.toggle('bg-gray-600', !isTrulyOn);
                 }
+            }
+        };
+
+        const MusicPlayer = {
+            randomMode: false,
+            updateUI: (data) => {
+                if (!data.music_state) return;
+                const m = data.music_state;
+                document.getElementById('music-title').innerText = m.current_song || "Nothing Playing";
+                document.getElementById('music-status').innerText = m.status === 'playing' ? "Playing Now" : "Stopped";
+                MusicPlayer.randomMode = m.random_mode;
+                const btn = document.getElementById('btn-shuffle');
+                if(m.random_mode) { btn.classList.add('text-green-400'); btn.innerText = "🔀 ON"; } 
+                else { btn.classList.remove('text-green-400'); btn.innerText = "🔀 OFF"; }
+            },
+            renderPlaylists: (list) => {
+                const sel = document.getElementById('music-playlist-select');
+                const targetSel = document.getElementById('target-playlist-select'); 
+                sel.innerHTML = '<option value="" disabled selected>Select...</option>';
+                if(targetSel) targetSel.innerHTML = '<option value="">Select Target...</option>';
+                list.forEach(pl => {
+                    const opt = document.createElement('option');
+                    opt.value = pl.id; opt.innerText = pl.name.replace(/_/g, ' ');
+                    sel.appendChild(opt); 
+                    if(targetSel) targetSel.appendChild(opt.cloneNode(true));
+                });
+            },
+            renderLibrary: (items) => {
+                const tbody = document.getElementById('music-library-list');
+                tbody.innerHTML = "";
+                items.forEach((song, idx) => {
+                    tbody.innerHTML += `<tr><td class="text-gray-500">${idx+1}</td><td><div class="font-bold text-gray-200 truncate w-32">${song.description}</div><div class="text-[10px] text-gray-500 truncate w-32">${song.filename}</div></td><td class="text-right"><button onclick="Mqtt.send('play_song_now', {song_id: ${song.id}})" class="text-blue-400 px-1 hover:text-white">▶</button><button onclick="Mqtt.send('add_to_queue', {song_id: ${song.id}})" class="text-green-400 px-1 hover:text-white">➕</button></td></tr>`;
+                });
+            },
+            renderQueue: (items) => {
+                const tbody = document.getElementById('music-queue-list');
+                tbody.innerHTML = "";
+                if(!items || items.length === 0) { tbody.innerHTML = '<tr><td class="text-gray-500 text-center text-xs">Empty</td></tr>'; return; }
+                items.forEach((song, idx) => { tbody.innerHTML += `<tr class="border-b border-gray-700"><td class="text-gray-400 w-4 text-xs">${idx+1}</td><td class="text-xs truncate max-w-[100px]">${song.description}</td></tr>`; });
+            },
+            playSelected: () => { const id = document.getElementById('music-playlist-select').value; if(id) Mqtt.send('play_playlist', {id: parseInt(id)}); },
+            addToPlaylist: (songId) => { const plId = document.getElementById('target-playlist-select')?.value; if(!plId) return App.showToast("Select Playlist!"); Mqtt.send('add_to_playlist', {playlist_id: parseInt(plId), song_id: songId}); },
+            createPlaylist: () => { const name = document.getElementById('new-playlist-name').value; if(name) { Mqtt.send('create_playlist', {name: name}); document.getElementById('new-playlist-name').value = ""; } },
+            addFile: () => { const fn = document.getElementById('new-file-path').value; const desc = document.getElementById('new-file-desc').value; if(fn && desc) { Mqtt.send('add_library_item', {filename: fn, description: desc}); document.getElementById('new-file-path').value = ""; document.getElementById('new-file-desc').value = ""; } },
+            toggleShuffle: () => { Mqtt.send('set_random_mode', {enabled: !MusicPlayer.randomMode}); },
+            playAll: (shuffle) => {
+                if(DATA.libraryCache.length === 0) return App.showToast("Library Empty");
+                if(!confirm(`Queue ${DATA.libraryCache.length} songs?`)) return;
+                let list = [...DATA.libraryCache];
+                if(shuffle) list.sort(() => Math.random() - 0.5);
+                list.forEach((s, i) => { setTimeout(() => Mqtt.send('add_to_queue', {song_id: s.id}), i * 50); });
+                App.showToast("Queueing...");
+            }
+        };
+
+        const Scheduler = {
+            init: () => { Scheduler.updateDeviceList(); },
+            updateDeviceList: () => {
+                const type = document.getElementById('sched-type').value;
+                const sel = document.getElementById('sched-name');
+                const srcWrap = document.getElementById('sched-source-wrapper');
+                sel.innerHTML = ""; let list = [];
+                if (type === 'pump') { list = DATA.pumps; srcWrap.style.display = 'block'; }
+                else if (type === 'valve') { list = DATA.valves; srcWrap.style.display = 'none'; }
+                else if (type === 'music') { list = DATA.playlists.map(p => p.name); srcWrap.style.display = 'none'; }
+                list.forEach(item => { const opt = document.createElement('option'); opt.value = item; opt.innerText = item.replace(/_/g, ' '); sel.appendChild(opt); });
+            },
+            saveTask: () => {
+                const dt = document.getElementById('sched-time').value;
+                if (!dt) return alert("Select Time");
+                const d = new Date(dt);
+                const fmt = d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,'0') + "-" + String(d.getDate()).padStart(2,'0') + " " + String(d.getHours()).padStart(2,'0') + ":" + String(d.getMinutes()).padStart(2,'0');
+                const payload = {
+                    device_type: document.getElementById('sched-type').value,
+                    device_name: document.getElementById('sched-name').value,
+                    source: document.getElementById('sched-source').value,
+                    start_time: fmt, duration: document.getElementById('sched-duration').value
+                };
+                Mqtt.send('schedule_task', payload); setTimeout(() => Mqtt.send('get_schedule'), 1000); 
+            },
+            renderTable: (tasks) => {
+                const tbody = document.getElementById('sched-list');
+                tbody.innerHTML = "";
+                if (!tasks || tasks.length === 0) { tbody.innerHTML = '<tr><td colspan="4" class="p-2 text-center text-gray-500 text-xs">No active tasks</td></tr>'; return; }
+                tasks.forEach(t => {
+                    tbody.innerHTML += `<tr class="border-b border-gray-700 hover:bg-gray-700/50"><td class="p-2"><div class="font-bold text-white capitalize text-xs">${t.device_name.replace(/_/g,' ')}</div><div class="text-[10px] text-gray-500 uppercase">${t.device_type}</div></td><td class="p-2 text-xs">${t.start_time.split(' ')[1]}</td><td class="p-2"><span class="${t.status === 'RUNNING' ? 'text-green-400 font-bold' : 'text-blue-400'} text-[10px] px-1 rounded bg-gray-800">${t.status}</span></td><td class="p-2 text-right"><button onclick="Mqtt.send('delete_schedule', {task_id: ${t.id}})" class="text-red-400 hover:text-white bg-red-900/30 px-2 py-0.5 rounded text-[10px]">X</button></td></tr>`;
+                });
             }
         };
     </script>
