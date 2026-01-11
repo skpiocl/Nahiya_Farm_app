@@ -256,6 +256,7 @@
                             <div id="diag-relays-2" class="space-y-1 max-h-80 overflow-y-auto"></div>
                         </div>
                     </div>
+                    
                     <div class="bg-gray-900 p-3 rounded-xl border border-gray-700">
                         <h3 class="text-xs font-bold mb-2">IR Remote Commands</h3>
                         <div id="ir-controls" class="grid grid-cols-2 md:grid-cols-4 gap-2"></div>
@@ -306,7 +307,7 @@
                 master_off: { "own_solar": 26, "sarkari_solar": 28 } 
             },
             SYSTEM_INPUTS: {
-                // Defines inputs for logic mapping, even if not displayed in diagnostics
+                // Defines inputs for logic mapping
                 "FLOAT_VALVE_HILL": "M1-0", "FLOAT_VALVE_HOUSE": "M1-1",
                 "FEEDBACK_own_solar_gate_bore": "M1-2", "FEEDBACK_own_solar_talaab_bore": "M1-3",
                 "FEEDBACK_own_solar_pandubbi": "M1-4", "FEEDBACK_own_solar_sarkari": "M1-5", "FEEDBACK_own_solar_middle": "M1-6",
@@ -320,6 +321,7 @@
             }
         };
 
+        // Helper maps for diagnostics
         let channelToInputMap = {};
         let reverseRelayMap = {};
 
@@ -428,6 +430,7 @@
                 const valveDiv = document.getElementById('cp-valves-list');
                 const irrigDiv = document.getElementById('cp-irrigation-list');
                 
+                // Clear existing
                 ownDiv.innerHTML = ""; govDiv.innerHTML = ""; valveDiv.innerHTML = ""; irrigDiv.innerHTML = "";
 
                 DATA.pumps.forEach(p => {
@@ -553,6 +556,7 @@
                         </div>`;
                 };
 
+                // --- IR INITIALIZATION ---
                 const irControls = document.getElementById('ir-controls');
                 if (irControls) {
                     irControls.innerHTML = "";
