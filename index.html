@@ -52,21 +52,22 @@
         /* Footer Transition */
         #log-panel { transition: height 0.3s ease-in-out; }
 
-        /* NEW: LED Bulb Style */
+        /* LED Bulb Style */
         .led-bulb {
             display: inline-block;
-            width: 10px;
-            height: 10px;
+            width: 12px;
+            height: 12px;
             border-radius: 50%;
             background-color: #374151; /* Default Gray */
-            border: 1px solid #1f2937;
+            border: 2px solid #1f2937;
             box-shadow: inset 0 0 2px rgba(0,0,0,0.5);
             transition: all 0.3s ease;
             margin-right: 8px;
+            flex-shrink: 0;
         }
         .led-bulb.on {
-            background-color: #22c55e; /* Green */
-            box-shadow: 0 0 5px #22c55e, inset 0 0 2px rgba(255,255,255,0.5);
+            background-color: #00ff00; /* Bright Green */
+            box-shadow: 0 0 8px #00ff00, inset 0 0 2px rgba(255,255,255,0.8);
             border-color: #166534;
         }
     </style>
@@ -394,7 +395,7 @@
                 const ownDiv = document.getElementById('cp-own-solar-list');
                 const govDiv = document.getElementById('cp-sarkari-solar-list');
                 
-                // Pumps: Added bulb span with ID
+                // Pumps
                 DATA.pumps.forEach(p => {
                     const btn = (source) => `<button onclick="Mqtt.send('start_pump', {pump: '${p}', source: '${source}'})" class="w-full bg-gray-700 hover:bg-gray-600 text-white py-2 px-2 rounded text-xs mb-1 text-left capitalize truncate border border-gray-600 flex items-center">
                         <span id="bulb-pump-${source}-${p}" class="led-bulb"></span>
@@ -403,7 +404,7 @@
                     ownDiv.innerHTML += btn('own_solar'); govDiv.innerHTML += btn('sarkari_solar');
                 });
 
-                // Valves: Added bulb span next to label
+                // Valves
                 const valveDiv = document.getElementById('cp-valves-list');
                 DATA.valves.forEach(v => {
                     valveDiv.innerHTML += `<label class="flex justify-between items-center bg-gray-800 p-2 rounded cursor-pointer border border-gray-700">
@@ -436,19 +437,34 @@
                 if (data.active_pumping_valves) { document.querySelectorAll('.cp-valve-check').forEach(cb => { cb.checked = data.active_pumping_valves.includes(cb.dataset.name.replace(/_/g,' ')); }); }
                 if (data.active_irrigation_areas) { document.querySelectorAll('.cp-irrig-check').forEach(cb => { cb.checked = data.active_irrigation_areas.includes(cb.dataset.name.replace(/_/g,' ')); }); }
 
-                // NEW: Update Bulbs based on Input Feedback
+                // --- ROBUST BULB LOGIC START ---
                 if(data.raw_device_states && data.raw_device_states.inputs) {
                     const inputs = data.raw_device_states.inputs;
-                    
-                    // Helper to check if feedback is active (fuzzy matching)
+                    // Debug Log for troubleshooting
+                    console.log("Raw Inputs Received:", Object.keys(inputs));
+
                     const checkFeedback = (deviceName) => {
-                        // Look for a key that contains the device name and 'FEEDBACK'
-                        const search = deviceName.toUpperCase();
-                        const key = Object.keys(inputs).find(k => k.includes(search) && (k.includes('FEEDBACK') || k.includes('STATUS')));
+                        const search = deviceName.toUpperCase().replace(/ /g, '_'); 
+                        const searchClean = search.replace(/_/g, ''); // Compact version just in case
+                        
+                        // 1. Try Direct Candidates
+                        const candidates = [
+                            search, 
+                            search + "_FEEDBACK", 
+                            search + "_FB", 
+                            search + "_STATUS", 
+                            search + "_INPUT"
+                        ];
+                        for (const c of candidates) {
+                            if (inputs[c] !== undefined) return inputs[c] === 1 || inputs[c] === true;
+                        }
+
+                        // 2. Fuzzy Search (Key contains device name)
+                        const key = Object.keys(inputs).find(k => k.toUpperCase().includes(search) || k.toUpperCase().includes(searchClean));
                         return key ? (inputs[key] === 1 || inputs[key] === true) : false;
                     };
 
-                    // Update Pump Bulbs
+                    // Update Pumps
                     DATA.pumps.forEach(p => {
                         const isActive = checkFeedback(p);
                         ['own_solar', 'sarkari_solar'].forEach(src => {
@@ -459,7 +475,7 @@
                         });
                     });
 
-                    // Update Valve Bulbs
+                    // Update Valves
                     DATA.valves.forEach(v => {
                         const isActive = checkFeedback(v);
                         const bulb = document.getElementById(`bulb-valve-${v}`);
@@ -468,6 +484,7 @@
                         }
                     });
                 }
+                // --- ROBUST BULB LOGIC END ---
             },
             updateValves: () => { const state = {}; document.querySelectorAll('.cp-valve-check').forEach(cb => state[cb.dataset.name] = cb.checked); Mqtt.send('set_pumping_valves', {valves: state}); },
             updateIrrigation: () => { const state = {}; document.querySelectorAll('.cp-irrig-check').forEach(cb => state[cb.dataset.name] = cb.checked); Mqtt.send('set_irrigation', {areas: state}); }
@@ -487,7 +504,7 @@
             },
             renderPlaylists: (list) => {
                 const sel = document.getElementById('music-playlist-select');
-                const targetSel = document.getElementById('target-playlist-select'); // Ensure this element exists in your music view if needed
+                const targetSel = document.getElementById('target-playlist-select');
                 sel.innerHTML = '<option value="" disabled selected>Select...</option>';
                 if(targetSel) targetSel.innerHTML = '<option value="">Select Target...</option>';
                 list.forEach(pl => {
@@ -564,8 +581,6 @@
             updateUI: (data) => {
                 if (!data.raw_device_states) return;
                 const relays = data.raw_device_states.relays || {};
-                
-                // Note: Input sensor section removed as requested.
                 
                 const r1 = document.getElementById('diag-relays-1');
                 const r2 = document.getElementById('diag-relays-2');
