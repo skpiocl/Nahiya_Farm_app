@@ -71,7 +71,7 @@
             border-color: #166534;
         }
         
-        /* Diag Status Light (From new file) */
+        /* Diag Status Light */
         .status-light { transition: background-color 0.3s ease; }
     </style>
 </head>
@@ -94,7 +94,6 @@
     <div id="app-container" class="hidden-view flex flex-col md:flex-row h-screen">
         
         <nav class="bg-gray-900 w-full md:w-64 flex-shrink-0 border-r border-gray-800 flex flex-col z-20 shadow-xl">
-            
             <div class="px-2 py-1 border-b border-gray-800 flex justify-between items-center bg-gray-900">
                 <div class="flex items-center space-x-2">
                     <i data-lucide="tractor" class="w-5 h-5 text-green-500"></i>
@@ -136,7 +135,6 @@
                 
                 <div id="view-control" class="active-view space-y-3">
                     <h2 class="text-lg font-bold text-white mb-1 px-1 hidden md:block">Main Control</h2>
-                    
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
                         <div class="bg-gray-900 p-3 rounded-xl border border-gray-700 shadow">
                             <h3 class="text-xs font-bold text-white mb-2 flex items-center"><i data-lucide="activity" class="mr-2 text-green-400 w-3 h-3"></i> Live Status</h3>
@@ -258,7 +256,6 @@
                             <div id="diag-relays-2" class="space-y-1 max-h-80 overflow-y-auto"></div>
                         </div>
                     </div>
-                    
                     <div class="bg-gray-900 p-3 rounded-xl border border-gray-700">
                         <h3 class="text-xs font-bold mb-2">IR Remote Commands</h3>
                         <div id="ir-controls" class="grid grid-cols-2 md:grid-cols-4 gap-2"></div>
@@ -300,7 +297,6 @@
             irrigation: ["upper_hill_mango", "lower_hill_mango", "lemon"],
             libraryCache: [], playlists: [],
             
-            // --- UPDATED CONFIG ---
             RELAY_CHANNELS: {
                 power_control: { "DC Control": 16, "Outer_light_control": 17 },
                 pumping_valves: { "bore_valves": 1, "talaab_valves": 2, "pandubbi_valves": 3, "farm_house_valves": 4 },
@@ -310,7 +306,7 @@
                 master_off: { "own_solar": 26, "sarkari_solar": 28 } 
             },
             SYSTEM_INPUTS: {
-                // Module 1 (16 Inputs)
+                // Defines inputs for logic mapping, even if not displayed in diagnostics
                 "FLOAT_VALVE_HILL": "M1-0", "FLOAT_VALVE_HOUSE": "M1-1",
                 "FEEDBACK_own_solar_gate_bore": "M1-2", "FEEDBACK_own_solar_talaab_bore": "M1-3",
                 "FEEDBACK_own_solar_pandubbi": "M1-4", "FEEDBACK_own_solar_sarkari": "M1-5", "FEEDBACK_own_solar_middle": "M1-6",
@@ -318,15 +314,12 @@
                 "FEEDBACK_sarkari_solar_pandubbi": "M1-9", "FEEDBACK_sarkari_solar_sarkari": "M1-10", "FEEDBACK_sarkari_solar_middle": "M1-11",
                 "VALVE_FEEDBACK_bore_valves": "M1-12", "VALVE_FEEDBACK_talaab_valves": "M1-13",
                 "VALVE_FEEDBACK_pandubbi_valves": "M1-14", "VALVE_FEEDBACK_farm_house_valves": "M1-15",
-                // Module 2 (5 Inputs)
                 "PHASE_INDICATOR_OWN_SOLAR_1PH": "M2-0", "PHASE_INDICATOR_SARKARI_SOLAR_1PH": "M2-1",
                 "VALVE_FEEDBACK_upper_hill_mango": "M2-2", "VALVE_FEEDBACK_lower_hill_mango": "M2-3", "VALVE_FEEDBACK_lemon": "M2-4",
-                // Legacy
                 "IR_TX": 18, "IR_RX": 24 
             }
         };
 
-        // Helper maps for diagnostics
         let channelToInputMap = {};
         let reverseRelayMap = {};
 
@@ -340,7 +333,6 @@
                     sessionStorage.setItem('mqtt_pass', atob(creds.p));
                     document.getElementById('login-overlay').style.display = 'none';
                     document.getElementById('app-container').classList.remove('hidden-view');
-                    // Build maps for diagnostics before init
                     Diagnostics.buildMaps();
                     Mqtt.connect(); ControlPanel.init(); Scheduler.init(); Diagnostics.init();
                 } else { document.getElementById('login-error').classList.remove('hidden'); }
@@ -436,7 +428,6 @@
                 const valveDiv = document.getElementById('cp-valves-list');
                 const irrigDiv = document.getElementById('cp-irrigation-list');
                 
-                // Clear existing
                 ownDiv.innerHTML = ""; govDiv.innerHTML = ""; valveDiv.innerHTML = ""; irrigDiv.innerHTML = "";
 
                 DATA.pumps.forEach(p => {
@@ -482,51 +473,29 @@
                 if (data.active_pumping_valves) { document.querySelectorAll('.cp-valve-check').forEach(cb => { cb.checked = data.active_pumping_valves.includes(cb.dataset.name.replace(/_/g,' ')); }); }
                 if (data.active_irrigation_areas) { document.querySelectorAll('.cp-irrig-check').forEach(cb => { cb.checked = data.active_irrigation_areas.includes(cb.dataset.name.replace(/_/g,' ')); }); }
 
-                // --- ROBUST BULB LOGIC (WITH FALLBACK) ---
                 if(data.raw_device_states) {
                     const relays = data.raw_device_states.relays || {};
                     const inputs = data.raw_device_states.inputs || data.raw_device_states.gpio || {};
                     
-                    // Update Pumps
                     DATA.pumps.forEach(p => {
                         ['own_solar', 'sarkari_solar'].forEach(src => {
                             const inputKey = `FEEDBACK_${src}_${p}`;
-                            // Find corresponding Relay Channel for fallback
                             const relayChannel = DATA.RELAY_CHANNELS[`pumps_${src}`] ? DATA.RELAY_CHANNELS[`pumps_${src}`][p] : null;
                             const relayOn = relayChannel ? relays[relayChannel] : false;
-                            
-                            // LOGIC: Use Input if present, else fallback to Relay
                             const inputVal = inputs[inputKey];
-                            let isActive = false;
-                            
-                            if (inputVal !== undefined) {
-                                isActive = (inputVal === 1 || inputVal === true);
-                            } else {
-                                isActive = (relayOn === 1 || relayOn === true);
-                            }
-
+                            let isActive = (inputVal !== undefined) ? (inputVal === 1 || inputVal === true) : (relayOn === 1 || relayOn === true);
                             const bulb = document.getElementById(`bulb-pump-${src}-${p}`);
                             if(bulb) { if(isActive) bulb.classList.add('on'); else bulb.classList.remove('on'); }
                         });
                     });
 
-                    // Update Valves (Pumping + Irrigation)
                     const allValves = [...DATA.valves, ...DATA.irrigation];
                     allValves.forEach(v => {
                         const inputKey = `VALVE_FEEDBACK_${v}`;
-                        // Find corresponding Relay Channel
                         let relayChannel = DATA.RELAY_CHANNELS.pumping_valves[v] || DATA.RELAY_CHANNELS.irrigation_valves[v];
                         const relayOn = relayChannel ? relays[relayChannel] : false;
-
                         const inputVal = inputs[inputKey];
-                        let isActive = false;
-
-                        if (inputVal !== undefined) {
-                            isActive = (inputVal === 1 || inputVal === true);
-                        } else {
-                            isActive = (relayOn === 1 || relayOn === true);
-                        }
-
+                        let isActive = (inputVal !== undefined) ? (inputVal === 1 || inputVal === true) : (relayOn === 1 || relayOn === true);
                         const bulb = document.getElementById(`bulb-valve-${v}`);
                         if(bulb) { if(isActive) bulb.classList.add('on'); else bulb.classList.remove('on'); }
                     });
@@ -541,37 +510,31 @@
                 const relayConfig = DATA.RELAY_CHANNELS;
                 const inputConfig = DATA.SYSTEM_INPUTS;
                 
-                // Power Control
                 for (const name in relayConfig.power_control) { reverseRelayMap[relayConfig.power_control[name]] = name; }
-                // Pumping Valves
                 for (const name in relayConfig.pumping_valves) {
                     const ch = relayConfig.pumping_valves[name];
                     reverseRelayMap[ch] = name;
                     const feedback = `VALVE_FEEDBACK_${name}`;
                     if (inputConfig[feedback]) channelToInputMap[ch] = feedback;
                 }
-                // Irrigation Valves
                 for (const name in relayConfig.irrigation_valves) {
                     const ch = relayConfig.irrigation_valves[name];
                     reverseRelayMap[ch] = name;
                     const feedback = `VALVE_FEEDBACK_${name}`;
                     if (inputConfig[feedback]) channelToInputMap[ch] = feedback;
                 }
-                // Own Solar
                 for (const name in relayConfig.pumps_own_solar) {
                     const ch = relayConfig.pumps_own_solar[name];
                     reverseRelayMap[ch] = `OWN: ${name}`;
                     const feedback = `FEEDBACK_own_solar_${name}`;
                     if (inputConfig[feedback]) channelToInputMap[ch] = feedback;
                 }
-                // Sarkari Solar
                 for (const name in relayConfig.pumps_sarkari_solar) {
                     const ch = relayConfig.pumps_sarkari_solar[name];
                     reverseRelayMap[ch] = `SARKARI: ${name}`;
                     const feedback = `FEEDBACK_sarkari_solar_${name}`;
                     if (inputConfig[feedback]) channelToInputMap[ch] = feedback;
                 }
-                // Master Off
                 for (const name in relayConfig.master_off) { reverseRelayMap[relayConfig.master_off[name]] = `MASTER OFF: ${name}`; }
             },
             
@@ -590,7 +553,6 @@
                         </div>`;
                 };
 
-                // --- NEW IR INITIALIZATION ---
                 const irControls = document.getElementById('ir-controls');
                 if (irControls) {
                     irControls.innerHTML = "";
@@ -599,13 +561,12 @@
                     });
                 }
 
-                const relayList1 = document.getElementById('relay-list-1');
-                const relayList2 = document.getElementById('relay-list-2');
+                // FIXED IDs HERE (diag-relays-1 and diag-relays-2)
+                const relayList1 = document.getElementById('diag-relays-1');
+                const relayList2 = document.getElementById('diag-relays-2');
                 
                 if (relayList1 && relayList2) {
                     relayList1.innerHTML = ""; relayList2.innerHTML = ""; 
-
-                    // Relays
                     for (let i = 1; i <= 30; i++) {
                         const name = reverseRelayMap[i] || 'Unassigned';
                         const controlHtml = createRelayControl(name, i);
@@ -619,7 +580,6 @@
                 const relays = data.raw_device_states.relays || {};
                 const inputs = data.raw_device_states.inputs || data.raw_device_states.gpio || {};
 
-                // 1. Update Relay Lights (1-30)
                 for (let i = 1; i <= 30; i++) {
                     const channel = i.toString();
                     const statusLight = document.querySelector(`.status-light[data-channel="${channel}"]`);
@@ -629,19 +589,17 @@
                     const feedbackInputName = channelToInputMap[channel];
 
                     if (feedbackInputName && inputs[feedbackInputName] !== undefined) {
-                        isTrulyOn = inputs[feedbackInputName]; // Use physical feedback
+                        isTrulyOn = inputs[feedbackInputName]; 
                     } else {
-                        isTrulyOn = relays[channel]; // Use logical relay state
+                        isTrulyOn = relays[channel]; 
                     }
 
                     statusLight.classList.toggle('bg-green-500', !!isTrulyOn);
-                    statusLight.classList.toggle('bg-green-400', !!isTrulyOn); // Tailwind enhancement
+                    statusLight.classList.toggle('bg-green-400', !!isTrulyOn); 
                     statusLight.classList.toggle('shadow-lg', !!isTrulyOn);
                     statusLight.classList.toggle('shadow-green-500/50', !!isTrulyOn);
                     statusLight.classList.toggle('bg-gray-600', !isTrulyOn);
                 }
-                
-                // DELETED: Loop to update Input Status list (since list is removed)
             }
         };
     </script>
