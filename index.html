@@ -295,6 +295,33 @@
                 1: "Bore Valves", 2: "Talaab Valves", 3: "Pandubbi Valves", 4: "Farm House Valves", 5: "Upper Hill Mango", 6: "Lower Hill Mango", 7: "Lemon",
                 11: "Own: Gate Bore", 12: "Own: Talaab Bore", 13: "Own: Pandubbi", 14: "Own: Sarkari", 15: "Own: Middle", 16: "DC Control", 17: "Outer Light Control",
                 21: "Sarkari: Gate Bore", 22: "Sarkari: Talaab Bore", 23: "Sarkari: Pandubbi", 24: "Sarkari: Sarkari", 25: "Sarkari: Middle", 26: "Master Off: Own Solar", 28: "Master Off: Sarkari Solar"
+            },
+            // EXACT MAPPING EXTRACTED FROM YOUR UPLOADED FILE
+            FEEDBACK_MAP: {
+                // Pumps (Own Solar)
+                "own_solar_gate_bore": "FEEDBACK_own_solar_gate_bore",
+                "own_solar_talaab_bore": "FEEDBACK_own_solar_talaab_bore",
+                "own_solar_pandubbi": "FEEDBACK_own_solar_pandubbi",
+                "own_solar_sarkari": "FEEDBACK_own_solar_sarkari",
+                "own_solar_middle": "FEEDBACK_own_solar_middle",
+
+                // Pumps (Sarkari Solar)
+                "sarkari_solar_gate_bore": "FEEDBACK_sarkari_solar_gate_bore",
+                "sarkari_solar_talaab_bore": "FEEDBACK_sarkari_solar_talaab_bore",
+                "sarkari_solar_pandubbi": "FEEDBACK_sarkari_solar_pandubbi",
+                "sarkari_solar_sarkari": "FEEDBACK_sarkari_solar_sarkari",
+                "sarkari_solar_middle": "FEEDBACK_sarkari_solar_middle",
+
+                // Pumping Valves
+                "bore_valves": "VALVE_FEEDBACK_bore_valves",
+                "talaab_valves": "VALVE_FEEDBACK_talaab_valves",
+                "pandubbi_valves": "VALVE_FEEDBACK_pandubbi_valves",
+                "farm_house_valves": "VALVE_FEEDBACK_farm_house_valves",
+                
+                // Irrigation Valves
+                "upper_hill_mango": "VALVE_FEEDBACK_upper_hill_mango",
+                "lower_hill_mango": "VALVE_FEEDBACK_lower_hill_mango",
+                "lemon": "VALVE_FEEDBACK_lemon"
             }
         };
 
@@ -417,7 +444,12 @@
                 
                 const irrigDiv = document.getElementById('cp-irrigation-list');
                 DATA.irrigation.forEach(i => {
-                    irrigDiv.innerHTML += `<label class="flex justify-between items-center bg-gray-800 p-2 rounded cursor-pointer border border-gray-700"><span class="text-gray-300 font-medium capitalize text-xs">${i.replace(/_/g,' ')}</span><div class="relative w-10 h-5"><input type="checkbox" class="sr-only valve-toggle cp-irrig-check" data-name="${i}"><div class="block bg-gray-600 w-full h-full rounded-full"></div><div class="dot absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition-transform"></div></div></label>`;
+                    irrigDiv.innerHTML += `<label class="flex justify-between items-center bg-gray-800 p-2 rounded cursor-pointer border border-gray-700">
+                        <div class="flex items-center">
+                             <span id="bulb-valve-${i}" class="led-bulb"></span>
+                             <span class="text-gray-300 font-medium capitalize text-xs">${i.replace(/_/g,' ')}</span>
+                        </div>
+                        <div class="relative w-10 h-5"><input type="checkbox" class="sr-only valve-toggle cp-irrig-check" data-name="${i}"><div class="block bg-gray-600 w-full h-full rounded-full"></div><div class="dot absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition-transform"></div></div></label>`;
                 });
             },
             updateUI: (data) => {
@@ -437,37 +469,21 @@
                 if (data.active_pumping_valves) { document.querySelectorAll('.cp-valve-check').forEach(cb => { cb.checked = data.active_pumping_valves.includes(cb.dataset.name.replace(/_/g,' ')); }); }
                 if (data.active_irrigation_areas) { document.querySelectorAll('.cp-irrig-check').forEach(cb => { cb.checked = data.active_irrigation_areas.includes(cb.dataset.name.replace(/_/g,' ')); }); }
 
-                // --- ROBUST BULB LOGIC START ---
-                if(data.raw_device_states && data.raw_device_states.inputs) {
-                    const inputs = data.raw_device_states.inputs;
-                    // Debug Log for troubleshooting
-                    console.log("Raw Inputs Received:", Object.keys(inputs));
-
-                    const checkFeedback = (deviceName) => {
-                        const search = deviceName.toUpperCase().replace(/ /g, '_'); 
-                        const searchClean = search.replace(/_/g, ''); // Compact version just in case
-                        
-                        // 1. Try Direct Candidates
-                        const candidates = [
-                            search, 
-                            search + "_FEEDBACK", 
-                            search + "_FB", 
-                            search + "_STATUS", 
-                            search + "_INPUT"
-                        ];
-                        for (const c of candidates) {
-                            if (inputs[c] !== undefined) return inputs[c] === 1 || inputs[c] === true;
-                        }
-
-                        // 2. Fuzzy Search (Key contains device name)
-                        const key = Object.keys(inputs).find(k => k.toUpperCase().includes(search) || k.toUpperCase().includes(searchClean));
-                        return key ? (inputs[key] === 1 || inputs[key] === true) : false;
-                    };
-
-                    // Update Pumps
+                // --- NEW ROBUST BULB LOGIC (EXACT MAPPING FROM UPLOADED FILE) ---
+                if(data.raw_device_states) {
+                    // Try to get input states (compatible with both Modbus and GPIO)
+                    const inputs = data.raw_device_states.inputs || data.raw_device_states.gpio || {};
+                    
+                    // 1. Update Pumps using Exact Keys
                     DATA.pumps.forEach(p => {
-                        const isActive = checkFeedback(p);
                         ['own_solar', 'sarkari_solar'].forEach(src => {
+                            // Construct the key (e.g., own_solar_gate_bore) and find it in the MAP
+                            const mapKey = `${src}_${p}`;
+                            const inputKey = DATA.FEEDBACK_MAP[mapKey];
+                            
+                            // Check if input is 1 or True
+                            const isActive = inputKey && (inputs[inputKey] === 1 || inputs[inputKey] === true);
+                            
                             const bulb = document.getElementById(`bulb-pump-${src}-${p}`);
                             if(bulb) {
                                 if(isActive) bulb.classList.add('on'); else bulb.classList.remove('on');
@@ -475,16 +491,19 @@
                         });
                     });
 
-                    // Update Valves
-                    DATA.valves.forEach(v => {
-                        const isActive = checkFeedback(v);
+                    // 2. Update Valves & Irrigation using Exact Keys
+                    const allValves = [...DATA.valves, ...DATA.irrigation];
+                    allValves.forEach(v => {
+                        const inputKey = DATA.FEEDBACK_MAP[v];
+                        const isActive = inputKey && (inputs[inputKey] === 1 || inputs[inputKey] === true);
+                        
+                        // Note: I used the same ID convention for both Pumping and Irrigation valves
                         const bulb = document.getElementById(`bulb-valve-${v}`);
                         if(bulb) {
-                            if(isActive) bulb.classList.add('on'); else bulb.classList.remove('on');
+                             if(isActive) bulb.classList.add('on'); else bulb.classList.remove('on');
                         }
                     });
                 }
-                // --- ROBUST BULB LOGIC END ---
             },
             updateValves: () => { const state = {}; document.querySelectorAll('.cp-valve-check').forEach(cb => state[cb.dataset.name] = cb.checked); Mqtt.send('set_pumping_valves', {valves: state}); },
             updateIrrigation: () => { const state = {}; document.querySelectorAll('.cp-irrig-check').forEach(cb => state[cb.dataset.name] = cb.checked); Mqtt.send('set_irrigation', {areas: state}); }
