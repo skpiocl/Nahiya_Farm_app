@@ -247,20 +247,20 @@
                     </div>
                 </div>
 
-                <div id="view-diag" class="hidden-view grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <div class="bg-gray-900 p-5 rounded-xl shadow-lg space-y-4">
-                        <h2 class="text-lg font-semibold text-white border-b border-gray-700 pb-2">Direct Relay Control (1-15)</h2>
-                        <div id="relay-list-1" class="space-y-2"></div>
+                <div id="view-diag" class="hidden-view space-y-3">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                        <div class="bg-gray-900 p-3 rounded-xl border border-gray-700">
+                            <h3 class="text-xs font-bold mb-2">Relays 1-15</h3>
+                            <div id="diag-relays-1" class="space-y-1 max-h-80 overflow-y-auto"></div>
+                        </div>
+                        <div class="bg-gray-900 p-3 rounded-xl border border-gray-700">
+                            <h3 class="text-xs font-bold mb-2">Relays 16-30</h3>
+                            <div id="diag-relays-2" class="space-y-1 max-h-80 overflow-y-auto"></div>
+                        </div>
                     </div>
-                    
-                    <div class="bg-gray-900 p-5 rounded-xl shadow-lg space-y-4">
-                        <h2 class="text-lg font-semibold text-white border-b border-gray-700 pb-2">Direct Relay Control (16-30)</h2>
-                        <div id="relay-list-2" class="space-y-2"></div>
-                    </div>
-
-                    <div class="bg-gray-900 p-5 rounded-xl shadow-lg space-y-4">
-                        <h2 class="text-lg font-semibold text-white border-b border-gray-700 pb-2">Input Status (Modbus)</h2>
-                        <div id="gpio-inputs-list" class="space-y-3 h-64 overflow-y-auto"></div>
+                    <div class="bg-gray-900 p-3 rounded-xl border border-gray-700">
+                        <h3 class="text-xs font-bold mb-2">Input Sensors (Modbus)</h3>
+                        <div id="diag-inputs" class="grid grid-cols-2 md:grid-cols-3 gap-2"></div>
                     </div>
                 </div>
 
@@ -322,8 +322,7 @@
                 "VALVE_FEEDBACK_upper_hill_mango": "M2-2", "VALVE_FEEDBACK_lower_hill_mango": "M2-3", "VALVE_FEEDBACK_lemon": "M2-4",
                 // Legacy
                 "IR_TX": 18, "IR_RX": 24 
-            },
-            FEEDBACK_MAP: { /* Copied logic to App.js variables below for easier access */ }
+            }
         };
 
         // Helper maps for diagnostics
@@ -433,8 +432,12 @@
             renderButtons: () => {
                 const ownDiv = document.getElementById('cp-own-solar-list');
                 const govDiv = document.getElementById('cp-sarkari-solar-list');
+                const valveDiv = document.getElementById('cp-valves-list');
+                const irrigDiv = document.getElementById('cp-irrigation-list');
                 
-                // Pumps
+                // Clear existing
+                ownDiv.innerHTML = ""; govDiv.innerHTML = ""; valveDiv.innerHTML = ""; irrigDiv.innerHTML = "";
+
                 DATA.pumps.forEach(p => {
                     const btn = (source) => `<button onclick="Mqtt.send('start_pump', {pump: '${p}', source: '${source}'})" class="w-full bg-gray-700 hover:bg-gray-600 text-white py-2 px-2 rounded text-xs mb-1 text-left capitalize truncate border border-gray-600 flex items-center">
                         <span id="bulb-pump-${source}-${p}" class="led-bulb"></span>
@@ -443,8 +446,6 @@
                     ownDiv.innerHTML += btn('own_solar'); govDiv.innerHTML += btn('sarkari_solar');
                 });
 
-                // Valves
-                const valveDiv = document.getElementById('cp-valves-list');
                 DATA.valves.forEach(v => {
                     valveDiv.innerHTML += `<label class="flex justify-between items-center bg-gray-800 p-2 rounded cursor-pointer border border-gray-700">
                         <div class="flex items-center">
@@ -454,7 +455,6 @@
                         <div class="relative w-10 h-5"><input type="checkbox" class="sr-only valve-toggle cp-valve-check" data-name="${v}"><div class="block bg-gray-600 w-full h-full rounded-full"></div><div class="dot absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition-transform"></div></div></label>`;
                 });
                 
-                const irrigDiv = document.getElementById('cp-irrigation-list');
                 DATA.irrigation.forEach(i => {
                     irrigDiv.innerHTML += `<label class="flex justify-between items-center bg-gray-800 p-2 rounded cursor-pointer border border-gray-700">
                         <div class="flex items-center">
@@ -481,30 +481,51 @@
                 if (data.active_pumping_valves) { document.querySelectorAll('.cp-valve-check').forEach(cb => { cb.checked = data.active_pumping_valves.includes(cb.dataset.name.replace(/_/g,' ')); }); }
                 if (data.active_irrigation_areas) { document.querySelectorAll('.cp-irrig-check').forEach(cb => { cb.checked = data.active_irrigation_areas.includes(cb.dataset.name.replace(/_/g,' ')); }); }
 
-                // --- ROBUST BULB LOGIC (EXACT MAPPING REUSED FROM DIAGNOSTICS) ---
+                // --- ROBUST BULB LOGIC (WITH FALLBACK) ---
                 if(data.raw_device_states) {
+                    const relays = data.raw_device_states.relays || {};
                     const inputs = data.raw_device_states.inputs || data.raw_device_states.gpio || {};
                     
                     // Update Pumps
                     DATA.pumps.forEach(p => {
                         ['own_solar', 'sarkari_solar'].forEach(src => {
-                            const mapKey = `${src}_${p}`;
-                            // This feedback map logic assumes standard naming. 
-                            // For improved robustness we check against known SYSTEM_INPUTS keys
-                            const inputKey = `FEEDBACK_${mapKey}`;
+                            const inputKey = `FEEDBACK_${src}_${p}`;
+                            // Find corresponding Relay Channel for fallback
+                            const relayChannel = DATA.RELAY_CHANNELS[`pumps_${src}`] ? DATA.RELAY_CHANNELS[`pumps_${src}`][p] : null;
+                            const relayOn = relayChannel ? relays[relayChannel] : false;
                             
-                            // Check if input is 1 or True
-                            const isActive = (inputs[inputKey] === 1 || inputs[inputKey] === true);
+                            // LOGIC: Use Input if present, else fallback to Relay
+                            const inputVal = inputs[inputKey];
+                            let isActive = false;
+                            
+                            if (inputVal !== undefined) {
+                                isActive = (inputVal === 1 || inputVal === true);
+                            } else {
+                                isActive = (relayOn === 1 || relayOn === true);
+                            }
+
                             const bulb = document.getElementById(`bulb-pump-${src}-${p}`);
                             if(bulb) { if(isActive) bulb.classList.add('on'); else bulb.classList.remove('on'); }
                         });
                     });
 
-                    // Update Valves
+                    // Update Valves (Pumping + Irrigation)
                     const allValves = [...DATA.valves, ...DATA.irrigation];
                     allValves.forEach(v => {
                         const inputKey = `VALVE_FEEDBACK_${v}`;
-                        const isActive = (inputs[inputKey] === 1 || inputs[inputKey] === true);
+                        // Find corresponding Relay Channel
+                        let relayChannel = DATA.RELAY_CHANNELS.pumping_valves[v] || DATA.RELAY_CHANNELS.irrigation_valves[v];
+                        const relayOn = relayChannel ? relays[relayChannel] : false;
+
+                        const inputVal = inputs[inputKey];
+                        let isActive = false;
+
+                        if (inputVal !== undefined) {
+                            isActive = (inputVal === 1 || inputVal === true);
+                        } else {
+                            isActive = (relayOn === 1 || relayOn === true);
+                        }
+
                         const bulb = document.getElementById(`bulb-valve-${v}`);
                         if(bulb) { if(isActive) bulb.classList.add('on'); else bulb.classList.remove('on'); }
                     });
@@ -512,6 +533,93 @@
             },
             updateValves: () => { const state = {}; document.querySelectorAll('.cp-valve-check').forEach(cb => state[cb.dataset.name] = cb.checked); Mqtt.send('set_pumping_valves', {valves: state}); },
             updateIrrigation: () => { const state = {}; document.querySelectorAll('.cp-irrig-check').forEach(cb => state[cb.dataset.name] = cb.checked); Mqtt.send('set_irrigation', {areas: state}); }
+        };
+
+        const MusicPlayer = {
+            randomMode: false,
+            updateUI: (data) => {
+                if (!data.music_state) return;
+                const m = data.music_state;
+                document.getElementById('music-title').innerText = m.current_song || "Nothing Playing";
+                document.getElementById('music-status').innerText = m.status === 'playing' ? "Playing Now" : "Stopped";
+                MusicPlayer.randomMode = m.random_mode;
+                const btn = document.getElementById('btn-shuffle');
+                if(m.random_mode) { btn.classList.add('text-green-400'); btn.innerText = "🔀 ON"; } 
+                else { btn.classList.remove('text-green-400'); btn.innerText = "🔀 OFF"; }
+            },
+            renderPlaylists: (list) => {
+                const sel = document.getElementById('music-playlist-select');
+                const targetSel = document.getElementById('target-playlist-select'); 
+                sel.innerHTML = '<option value="" disabled selected>Select...</option>';
+                if(targetSel) targetSel.innerHTML = '<option value="">Select Target...</option>';
+                list.forEach(pl => {
+                    const opt = document.createElement('option');
+                    opt.value = pl.id; opt.innerText = pl.name.replace(/_/g, ' ');
+                    sel.appendChild(opt); 
+                    if(targetSel) targetSel.appendChild(opt.cloneNode(true));
+                });
+            },
+            renderLibrary: (items) => {
+                const tbody = document.getElementById('music-library-list');
+                tbody.innerHTML = "";
+                items.forEach((song, idx) => {
+                    tbody.innerHTML += `<tr><td class="text-gray-500">${idx+1}</td><td><div class="font-bold text-gray-200 truncate w-32">${song.description}</div><div class="text-[10px] text-gray-500 truncate w-32">${song.filename}</div></td><td class="text-right"><button onclick="Mqtt.send('play_song_now', {song_id: ${song.id}})" class="text-blue-400 px-1 hover:text-white">▶</button><button onclick="Mqtt.send('add_to_queue', {song_id: ${song.id}})" class="text-green-400 px-1 hover:text-white">➕</button></td></tr>`;
+                });
+            },
+            renderQueue: (items) => {
+                const tbody = document.getElementById('music-queue-list');
+                tbody.innerHTML = "";
+                if(!items || items.length === 0) { tbody.innerHTML = '<tr><td class="text-gray-500 text-center text-xs">Empty</td></tr>'; return; }
+                items.forEach((song, idx) => { tbody.innerHTML += `<tr class="border-b border-gray-700"><td class="text-gray-400 w-4 text-xs">${idx+1}</td><td class="text-xs truncate max-w-[100px]">${song.description}</td></tr>`; });
+            },
+            playSelected: () => { const id = document.getElementById('music-playlist-select').value; if(id) Mqtt.send('play_playlist', {id: parseInt(id)}); },
+            addToPlaylist: (songId) => { const plId = document.getElementById('target-playlist-select')?.value; if(!plId) return App.showToast("Select Playlist!"); Mqtt.send('add_to_playlist', {playlist_id: parseInt(plId), song_id: songId}); },
+            createPlaylist: () => { const name = document.getElementById('new-playlist-name').value; if(name) { Mqtt.send('create_playlist', {name: name}); document.getElementById('new-playlist-name').value = ""; } },
+            addFile: () => { const fn = document.getElementById('new-file-path').value; const desc = document.getElementById('new-file-desc').value; if(fn && desc) { Mqtt.send('add_library_item', {filename: fn, description: desc}); document.getElementById('new-file-path').value = ""; document.getElementById('new-file-desc').value = ""; } },
+            toggleShuffle: () => { Mqtt.send('set_random_mode', {enabled: !MusicPlayer.randomMode}); },
+            playAll: (shuffle) => {
+                if(DATA.libraryCache.length === 0) return App.showToast("Library Empty");
+                if(!confirm(`Queue ${DATA.libraryCache.length} songs?`)) return;
+                let list = [...DATA.libraryCache];
+                if(shuffle) list.sort(() => Math.random() - 0.5);
+                list.forEach((s, i) => { setTimeout(() => Mqtt.send('add_to_queue', {song_id: s.id}), i * 50); });
+                App.showToast("Queueing...");
+            }
+        };
+
+        const Scheduler = {
+            init: () => { Scheduler.updateDeviceList(); },
+            updateDeviceList: () => {
+                const type = document.getElementById('sched-type').value;
+                const sel = document.getElementById('sched-name');
+                const srcWrap = document.getElementById('sched-source-wrapper');
+                sel.innerHTML = ""; let list = [];
+                if (type === 'pump') { list = DATA.pumps; srcWrap.style.display = 'block'; }
+                else if (type === 'valve') { list = DATA.valves; srcWrap.style.display = 'none'; }
+                else if (type === 'music') { list = DATA.playlists.map(p => p.name); srcWrap.style.display = 'none'; }
+                list.forEach(item => { const opt = document.createElement('option'); opt.value = item; opt.innerText = item.replace(/_/g, ' '); sel.appendChild(opt); });
+            },
+            saveTask: () => {
+                const dt = document.getElementById('sched-time').value;
+                if (!dt) return alert("Select Time");
+                const d = new Date(dt);
+                const fmt = d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,'0') + "-" + String(d.getDate()).padStart(2,'0') + " " + String(d.getHours()).padStart(2,'0') + ":" + String(d.getMinutes()).padStart(2,'0');
+                const payload = {
+                    device_type: document.getElementById('sched-type').value,
+                    device_name: document.getElementById('sched-name').value,
+                    source: document.getElementById('sched-source').value,
+                    start_time: fmt, duration: document.getElementById('sched-duration').value
+                };
+                Mqtt.send('schedule_task', payload); setTimeout(() => Mqtt.send('get_schedule'), 1000); 
+            },
+            renderTable: (tasks) => {
+                const tbody = document.getElementById('sched-list');
+                tbody.innerHTML = "";
+                if (!tasks || tasks.length === 0) { tbody.innerHTML = '<tr><td colspan="4" class="p-2 text-center text-gray-500 text-xs">No active tasks</td></tr>'; return; }
+                tasks.forEach(t => {
+                    tbody.innerHTML += `<tr class="border-b border-gray-700 hover:bg-gray-700/50"><td class="p-2"><div class="font-bold text-white capitalize text-xs">${t.device_name.replace(/_/g,' ')}</div><div class="text-[10px] text-gray-500 uppercase">${t.device_type}</div></td><td class="p-2 text-xs">${t.start_time.split(' ')[1]}</td><td class="p-2"><span class="${t.status === 'RUNNING' ? 'text-green-400 font-bold' : 'text-blue-400'} text-[10px] px-1 rounded bg-gray-800">${t.status}</span></td><td class="p-2 text-right"><button onclick="Mqtt.send('delete_schedule', {task_id: ${t.id}})" class="text-red-400 hover:text-white bg-red-900/30 px-2 py-0.5 rounded text-[10px]">X</button></td></tr>`;
+                });
+            }
         };
 
         const Diagnostics = {
@@ -638,88 +746,6 @@
                         }
                     }
                 }
-            }
-        };
-
-        const MusicPlayer = {
-            randomMode: false,
-            updateUI: (data) => {
-                if (!data.music_state) return;
-                const m = data.music_state;
-                document.getElementById('music-title').innerText = m.current_song || "Nothing Playing";
-                document.getElementById('music-status').innerText = m.status === 'playing' ? "Playing Now" : "Stopped";
-                MusicPlayer.randomMode = m.random_mode;
-                const btn = document.getElementById('btn-shuffle');
-                if(m.random_mode) { btn.classList.add('text-green-400'); btn.innerText = "🔀 ON"; } 
-                else { btn.classList.remove('text-green-400'); btn.innerText = "🔀 OFF"; }
-            },
-            renderPlaylists: (list) => {
-                const sel = document.getElementById('music-playlist-select');
-                sel.innerHTML = '<option value="" disabled selected>Select...</option>';
-                list.forEach(pl => {
-                    const opt = document.createElement('option');
-                    opt.value = pl.id; opt.innerText = pl.name.replace(/_/g, ' ');
-                    sel.appendChild(opt); 
-                });
-            },
-            renderLibrary: (items) => {
-                const tbody = document.getElementById('music-library-list');
-                tbody.innerHTML = "";
-                items.forEach((song, idx) => {
-                    tbody.innerHTML += `<tr><td class="text-gray-500">${idx+1}</td><td><div class="font-bold text-gray-200 truncate w-32">${song.description}</div><div class="text-[10px] text-gray-500 truncate w-32">${song.filename}</div></td><td class="text-right"><button onclick="Mqtt.send('play_song_now', {song_id: ${song.id}})" class="text-blue-400 px-1 hover:text-white">▶</button><button onclick="Mqtt.send('add_to_queue', {song_id: ${song.id}})" class="text-green-400 px-1 hover:text-white">➕</button></td></tr>`;
-                });
-            },
-            renderQueue: (items) => {
-                const tbody = document.getElementById('music-queue-list');
-                tbody.innerHTML = "";
-                if(!items || items.length === 0) { tbody.innerHTML = '<tr><td class="text-gray-500 text-center text-xs">Empty</td></tr>'; return; }
-                items.forEach((song, idx) => { tbody.innerHTML += `<tr class="border-b border-gray-700"><td class="text-gray-400 w-4 text-xs">${idx+1}</td><td class="text-xs truncate max-w-[100px]">${song.description}</td></tr>`; });
-            },
-            playSelected: () => { const id = document.getElementById('music-playlist-select').value; if(id) Mqtt.send('play_playlist', {id: parseInt(id)}); },
-            createPlaylist: () => { const name = document.getElementById('new-playlist-name').value; if(name) { Mqtt.send('create_playlist', {name: name}); document.getElementById('new-playlist-name').value = ""; } },
-            toggleShuffle: () => { Mqtt.send('set_random_mode', {enabled: !MusicPlayer.randomMode}); },
-            playAll: (shuffle) => {
-                if(DATA.libraryCache.length === 0) return App.showToast("Library Empty");
-                if(!confirm(`Queue ${DATA.libraryCache.length} songs?`)) return;
-                let list = [...DATA.libraryCache];
-                if(shuffle) list.sort(() => Math.random() - 0.5);
-                list.forEach((s, i) => { setTimeout(() => Mqtt.send('add_to_queue', {song_id: s.id}), i * 50); });
-                App.showToast("Queueing...");
-            }
-        };
-
-        const Scheduler = {
-            init: () => { Scheduler.updateDeviceList(); },
-            updateDeviceList: () => {
-                const type = document.getElementById('sched-type').value;
-                const sel = document.getElementById('sched-name');
-                const srcWrap = document.getElementById('sched-source-wrapper');
-                sel.innerHTML = ""; let list = [];
-                if (type === 'pump') { list = DATA.pumps; srcWrap.style.display = 'block'; }
-                else if (type === 'valve') { list = DATA.valves; srcWrap.style.display = 'none'; }
-                else if (type === 'music') { list = DATA.playlists.map(p => p.name); srcWrap.style.display = 'none'; }
-                list.forEach(item => { const opt = document.createElement('option'); opt.value = item; opt.innerText = item.replace(/_/g, ' '); sel.appendChild(opt); });
-            },
-            saveTask: () => {
-                const dt = document.getElementById('sched-time').value;
-                if (!dt) return alert("Select Time");
-                const d = new Date(dt);
-                const fmt = d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,'0') + "-" + String(d.getDate()).padStart(2,'0') + " " + String(d.getHours()).padStart(2,'0') + ":" + String(d.getMinutes()).padStart(2,'0');
-                const payload = {
-                    device_type: document.getElementById('sched-type').value,
-                    device_name: document.getElementById('sched-name').value,
-                    source: document.getElementById('sched-source').value,
-                    start_time: fmt, duration: document.getElementById('sched-duration').value
-                };
-                Mqtt.send('schedule_task', payload); setTimeout(() => Mqtt.send('get_schedule'), 1000); 
-            },
-            renderTable: (tasks) => {
-                const tbody = document.getElementById('sched-list');
-                tbody.innerHTML = "";
-                if (!tasks || tasks.length === 0) { tbody.innerHTML = '<tr><td colspan="4" class="p-2 text-center text-gray-500 text-xs">No active tasks</td></tr>'; return; }
-                tasks.forEach(t => {
-                    tbody.innerHTML += `<tr class="border-b border-gray-700 hover:bg-gray-700/50"><td class="p-2"><div class="font-bold text-white capitalize text-xs">${t.device_name.replace(/_/g,' ')}</div><div class="text-[10px] text-gray-500 uppercase">${t.device_type}</div></td><td class="p-2 text-xs">${t.start_time.split(' ')[1]}</td><td class="p-2"><span class="${t.status === 'RUNNING' ? 'text-green-400 font-bold' : 'text-blue-400'} text-[10px] px-1 rounded bg-gray-800">${t.status}</span></td><td class="p-2 text-right"><button onclick="Mqtt.send('delete_schedule', {task_id: ${t.id}})" class="text-red-400 hover:text-white bg-red-900/30 px-2 py-0.5 rounded text-[10px]">X</button></td></tr>`;
-                });
             }
         };
     </script>
