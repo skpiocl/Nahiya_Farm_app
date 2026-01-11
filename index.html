@@ -51,6 +51,24 @@
 
         /* Footer Transition */
         #log-panel { transition: height 0.3s ease-in-out; }
+
+        /* NEW: LED Bulb Style */
+        .led-bulb {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: #374151; /* Default Gray */
+            border: 1px solid #1f2937;
+            box-shadow: inset 0 0 2px rgba(0,0,0,0.5);
+            transition: all 0.3s ease;
+            margin-right: 8px;
+        }
+        .led-bulb.on {
+            background-color: #22c55e; /* Green */
+            box-shadow: 0 0 5px #22c55e, inset 0 0 2px rgba(255,255,255,0.5);
+            border-color: #166534;
+        }
     </style>
 </head>
 <body>
@@ -236,10 +254,6 @@
                             <div id="diag-relays-2" class="space-y-1 max-h-80 overflow-y-auto"></div>
                         </div>
                     </div>
-                    <div class="bg-gray-900 p-3 rounded-xl border border-gray-700">
-                        <h3 class="text-xs font-bold mb-2">Input Sensors (Modbus)</h3>
-                        <div id="diag-inputs" class="grid grid-cols-2 md:grid-cols-3 gap-2"></div>
-                    </div>
                 </div>
 
             </main>
@@ -263,7 +277,7 @@
     <div id="toast" class="fixed bottom-44 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white py-2 px-6 rounded-full shadow-lg opacity-0 transition-opacity duration-300 pointer-events-none z-50 text-xs">Action Sent</div>
 
     <script>
-        // CONFIG & MAPPING (Unchanged)
+        // CONFIG & MAPPING
         const CONSTANTS = {
             BROKER: "wss://t7ef11fa.ala.asia-southeast1.emqxsl.com:8084/mqtt",
             AUTH_MAP: { "admin": { u: "c2tw", p: "QnViYmxlQDEw" }, "farm":  { u: "c2tw", p: "QnViYmxlQDEw" } },
@@ -307,7 +321,6 @@
                 if(viewId === 'music') { Mqtt.send('get_playlists'); Mqtt.send('get_queue'); Mqtt.send('get_library'); }
                 if(viewId === 'scheduler') { Mqtt.send('get_schedule'); Mqtt.send('get_playlists'); }
             },
-            // NEW LOG LOGIC: Toggle Height
             toggleLogHeight: () => {
                 const panel = document.getElementById('log-panel');
                 const chevron = document.getElementById('log-chevron');
@@ -380,14 +393,27 @@
             renderButtons: () => {
                 const ownDiv = document.getElementById('cp-own-solar-list');
                 const govDiv = document.getElementById('cp-sarkari-solar-list');
+                
+                // Pumps: Added bulb span with ID
                 DATA.pumps.forEach(p => {
-                    const btn = (source) => `<button onclick="Mqtt.send('start_pump', {pump: '${p}', source: '${source}'})" class="w-full bg-gray-700 hover:bg-gray-600 text-white py-2 px-2 rounded text-xs mb-1 text-left capitalize truncate border border-gray-600">⚡ ${p.replace(/_/g,' ')}</button>`;
+                    const btn = (source) => `<button onclick="Mqtt.send('start_pump', {pump: '${p}', source: '${source}'})" class="w-full bg-gray-700 hover:bg-gray-600 text-white py-2 px-2 rounded text-xs mb-1 text-left capitalize truncate border border-gray-600 flex items-center">
+                        <span id="bulb-pump-${source}-${p}" class="led-bulb"></span>
+                        ⚡ ${p.replace(/_/g,' ')}
+                    </button>`;
                     ownDiv.innerHTML += btn('own_solar'); govDiv.innerHTML += btn('sarkari_solar');
                 });
+
+                // Valves: Added bulb span next to label
                 const valveDiv = document.getElementById('cp-valves-list');
                 DATA.valves.forEach(v => {
-                    valveDiv.innerHTML += `<label class="flex justify-between items-center bg-gray-800 p-2 rounded cursor-pointer border border-gray-700"><span class="text-gray-300 font-medium capitalize text-xs">${v.replace(/_/g,' ')}</span><div class="relative w-10 h-5"><input type="checkbox" class="sr-only valve-toggle cp-valve-check" data-name="${v}"><div class="block bg-gray-600 w-full h-full rounded-full"></div><div class="dot absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition-transform"></div></div></label>`;
+                    valveDiv.innerHTML += `<label class="flex justify-between items-center bg-gray-800 p-2 rounded cursor-pointer border border-gray-700">
+                        <div class="flex items-center">
+                             <span id="bulb-valve-${v}" class="led-bulb"></span>
+                             <span class="text-gray-300 font-medium capitalize text-xs">${v.replace(/_/g,' ')}</span>
+                        </div>
+                        <div class="relative w-10 h-5"><input type="checkbox" class="sr-only valve-toggle cp-valve-check" data-name="${v}"><div class="block bg-gray-600 w-full h-full rounded-full"></div><div class="dot absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition-transform"></div></div></label>`;
                 });
+                
                 const irrigDiv = document.getElementById('cp-irrigation-list');
                 DATA.irrigation.forEach(i => {
                     irrigDiv.innerHTML += `<label class="flex justify-between items-center bg-gray-800 p-2 rounded cursor-pointer border border-gray-700"><span class="text-gray-300 font-medium capitalize text-xs">${i.replace(/_/g,' ')}</span><div class="relative w-10 h-5"><input type="checkbox" class="sr-only valve-toggle cp-irrig-check" data-name="${i}"><div class="block bg-gray-600 w-full h-full rounded-full"></div><div class="dot absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition-transform"></div></div></label>`;
@@ -398,6 +424,7 @@
                 if (data.running_pumps && data.running_pumps.length > 0 && data.running_pumps !== "None") {
                     pumpList.innerHTML = data.running_pumps.map(p => `<div class="flex justify-between items-center bg-green-900/30 p-1 rounded text-xs mb-1 border border-green-800"><span>${p}</span><button onclick="Mqtt.send('stop_pump', {pump: '${p.split(' ')[0]}'})" class="text-red-400 font-bold px-2">STOP</button></div>`).join('');
                 } else { pumpList.innerText = "None"; }
+                
                 if (data.float_valves) {
                     const hill = document.getElementById('cp-tank-hill');
                     const house = document.getElementById('cp-tank-house');
@@ -408,6 +435,39 @@
                 }
                 if (data.active_pumping_valves) { document.querySelectorAll('.cp-valve-check').forEach(cb => { cb.checked = data.active_pumping_valves.includes(cb.dataset.name.replace(/_/g,' ')); }); }
                 if (data.active_irrigation_areas) { document.querySelectorAll('.cp-irrig-check').forEach(cb => { cb.checked = data.active_irrigation_areas.includes(cb.dataset.name.replace(/_/g,' ')); }); }
+
+                // NEW: Update Bulbs based on Input Feedback
+                if(data.raw_device_states && data.raw_device_states.inputs) {
+                    const inputs = data.raw_device_states.inputs;
+                    
+                    // Helper to check if feedback is active (fuzzy matching)
+                    const checkFeedback = (deviceName) => {
+                        // Look for a key that contains the device name and 'FEEDBACK'
+                        const search = deviceName.toUpperCase();
+                        const key = Object.keys(inputs).find(k => k.includes(search) && (k.includes('FEEDBACK') || k.includes('STATUS')));
+                        return key ? (inputs[key] === 1 || inputs[key] === true) : false;
+                    };
+
+                    // Update Pump Bulbs
+                    DATA.pumps.forEach(p => {
+                        const isActive = checkFeedback(p);
+                        ['own_solar', 'sarkari_solar'].forEach(src => {
+                            const bulb = document.getElementById(`bulb-pump-${src}-${p}`);
+                            if(bulb) {
+                                if(isActive) bulb.classList.add('on'); else bulb.classList.remove('on');
+                            }
+                        });
+                    });
+
+                    // Update Valve Bulbs
+                    DATA.valves.forEach(v => {
+                        const isActive = checkFeedback(v);
+                        const bulb = document.getElementById(`bulb-valve-${v}`);
+                        if(bulb) {
+                            if(isActive) bulb.classList.add('on'); else bulb.classList.remove('on');
+                        }
+                    });
+                }
             },
             updateValves: () => { const state = {}; document.querySelectorAll('.cp-valve-check').forEach(cb => state[cb.dataset.name] = cb.checked); Mqtt.send('set_pumping_valves', {valves: state}); },
             updateIrrigation: () => { const state = {}; document.querySelectorAll('.cp-irrig-check').forEach(cb => state[cb.dataset.name] = cb.checked); Mqtt.send('set_irrigation', {areas: state}); }
@@ -504,14 +564,9 @@
             updateUI: (data) => {
                 if (!data.raw_device_states) return;
                 const relays = data.raw_device_states.relays || {};
-                const inputs = data.raw_device_states.inputs || {};
-                const inputDiv = document.getElementById('diag-inputs');
-                inputDiv.innerHTML = "";
-                Object.keys(inputs).forEach(key => {
-                    const isActive = inputs[key] === 1 || inputs[key] === true;
-                    const color = isActive ? "text-green-400 border-green-900 bg-green-900/20" : "text-gray-500 border-gray-700 bg-gray-800";
-                    inputDiv.innerHTML += `<div class="border rounded p-1.5 text-xs flex justify-between items-center ${color}"><span class="truncate pr-1" title="${key}">${key.replace(/_/g,' ').replace('FEEDBACK','FB')}</span><span class="font-bold">${isActive ? '1' : '0'}</span></div>`;
-                });
+                
+                // Note: Input sensor section removed as requested.
+                
                 const r1 = document.getElementById('diag-relays-1');
                 const r2 = document.getElementById('diag-relays-2');
                 r1.innerHTML = ""; r2.innerHTML = "";
