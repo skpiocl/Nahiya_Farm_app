@@ -296,29 +296,27 @@
                 11: "Own: Gate Bore", 12: "Own: Talaab Bore", 13: "Own: Pandubbi", 14: "Own: Sarkari", 15: "Own: Middle", 16: "DC Control", 17: "Outer Light Control",
                 21: "Sarkari: Gate Bore", 22: "Sarkari: Talaab Bore", 23: "Sarkari: Pandubbi", 24: "Sarkari: Sarkari", 25: "Sarkari: Middle", 26: "Master Off: Own Solar", 28: "Master Off: Sarkari Solar"
             },
-            // EXACT MAPPING EXTRACTED FROM YOUR UPLOADED FILE
+            // EXACT NAME MAPPING (Derived from your new_diagnostics.html)
             FEEDBACK_MAP: {
-                // Pumps (Own Solar)
+                // Own Solar
                 "own_solar_gate_bore": "FEEDBACK_own_solar_gate_bore",
                 "own_solar_talaab_bore": "FEEDBACK_own_solar_talaab_bore",
                 "own_solar_pandubbi": "FEEDBACK_own_solar_pandubbi",
                 "own_solar_sarkari": "FEEDBACK_own_solar_sarkari",
                 "own_solar_middle": "FEEDBACK_own_solar_middle",
-
-                // Pumps (Sarkari Solar)
+                
+                // Sarkari Solar
                 "sarkari_solar_gate_bore": "FEEDBACK_sarkari_solar_gate_bore",
                 "sarkari_solar_talaab_bore": "FEEDBACK_sarkari_solar_talaab_bore",
                 "sarkari_solar_pandubbi": "FEEDBACK_sarkari_solar_pandubbi",
                 "sarkari_solar_sarkari": "FEEDBACK_sarkari_solar_sarkari",
                 "sarkari_solar_middle": "FEEDBACK_sarkari_solar_middle",
 
-                // Pumping Valves
+                // Valves
                 "bore_valves": "VALVE_FEEDBACK_bore_valves",
                 "talaab_valves": "VALVE_FEEDBACK_talaab_valves",
                 "pandubbi_valves": "VALVE_FEEDBACK_pandubbi_valves",
                 "farm_house_valves": "VALVE_FEEDBACK_farm_house_valves",
-                
-                // Irrigation Valves
                 "upper_hill_mango": "VALVE_FEEDBACK_upper_hill_mango",
                 "lower_hill_mango": "VALVE_FEEDBACK_lower_hill_mango",
                 "lemon": "VALVE_FEEDBACK_lemon"
@@ -469,38 +467,47 @@
                 if (data.active_pumping_valves) { document.querySelectorAll('.cp-valve-check').forEach(cb => { cb.checked = data.active_pumping_valves.includes(cb.dataset.name.replace(/_/g,' ')); }); }
                 if (data.active_irrigation_areas) { document.querySelectorAll('.cp-irrig-check').forEach(cb => { cb.checked = data.active_irrigation_areas.includes(cb.dataset.name.replace(/_/g,' ')); }); }
 
-                // --- NEW ROBUST BULB LOGIC (EXACT MAPPING FROM UPLOADED FILE) ---
+                // --- STRICT BULB LOGIC (EXACT MAPPING) ---
                 if(data.raw_device_states) {
-                    // Try to get input states (compatible with both Modbus and GPIO)
+                    // Compatible with both Modbus (inputs) and old GPIO style
                     const inputs = data.raw_device_states.inputs || data.raw_device_states.gpio || {};
                     
-                    // 1. Update Pumps using Exact Keys
+                    // 1. Pumps
                     DATA.pumps.forEach(p => {
                         ['own_solar', 'sarkari_solar'].forEach(src => {
-                            // Construct the key (e.g., own_solar_gate_bore) and find it in the MAP
+                            // Construct map key: e.g. "own_solar_gate_bore"
                             const mapKey = `${src}_${p}`;
+                            // Get Exact Input Name from Map: e.g. "FEEDBACK_own_solar_gate_bore"
                             const inputKey = DATA.FEEDBACK_MAP[mapKey];
                             
-                            // Check if input is 1 or True
-                            const isActive = inputKey && (inputs[inputKey] === 1 || inputs[inputKey] === true);
-                            
-                            const bulb = document.getElementById(`bulb-pump-${src}-${p}`);
-                            if(bulb) {
-                                if(isActive) bulb.classList.add('on'); else bulb.classList.remove('on');
+                            if (inputKey) {
+                                // Check if active (allowing for 1 or true)
+                                const val = inputs[inputKey];
+                                const isActive = (val === 1 || val === true || val === "1");
+                                
+                                // Troubleshooting: Log if key exists but isn't 1
+                                if (val !== undefined && !isActive) console.log(`Bulb ${inputKey} is OFF. Value:`, val);
+
+                                const bulb = document.getElementById(`bulb-pump-${src}-${p}`);
+                                if(bulb) {
+                                    if(isActive) bulb.classList.add('on'); else bulb.classList.remove('on');
+                                }
                             }
                         });
                     });
 
-                    // 2. Update Valves & Irrigation using Exact Keys
+                    // 2. Valves & Irrigation
                     const allValves = [...DATA.valves, ...DATA.irrigation];
                     allValves.forEach(v => {
                         const inputKey = DATA.FEEDBACK_MAP[v];
-                        const isActive = inputKey && (inputs[inputKey] === 1 || inputs[inputKey] === true);
-                        
-                        // Note: I used the same ID convention for both Pumping and Irrigation valves
-                        const bulb = document.getElementById(`bulb-valve-${v}`);
-                        if(bulb) {
-                             if(isActive) bulb.classList.add('on'); else bulb.classList.remove('on');
+                        if (inputKey) {
+                            const val = inputs[inputKey];
+                            const isActive = (val === 1 || val === true || val === "1");
+                            
+                            const bulb = document.getElementById(`bulb-valve-${v}`);
+                            if(bulb) {
+                                if(isActive) bulb.classList.add('on'); else bulb.classList.remove('on');
+                            }
                         }
                     });
                 }
