@@ -47,8 +47,9 @@
         <div id="modal-content">
             <div class="flex justify-between items-center mb-4">
                 <h2 class="text-lg font-bold text-white" id="modal-title">Edit Playlist</h2>
-                <button onclick="document.getElementById('modal-overlay').style.display='none'" class="text-gray-400 hover:text-white">✕</button>
+                <button onclick="document.getElementById('modal-overlay').style.display='none'" class="text-gray-400 hover:text-white bg-gray-700 rounded px-2">✕ Close</button>
             </div>
+            <p class="text-xs text-gray-400 mb-2">Click trash icon to remove song from this playlist.</p>
             <table class="w-full data-table">
                 <tbody id="modal-list"></tbody>
             </table>
@@ -213,12 +214,29 @@
                         </div>
                         <div class="bg-gray-900 p-3 rounded-xl border border-gray-700">
                             <h3 class="font-bold text-xs mb-2">Playlists</h3>
+                            
                             <div class="flex gap-2 mb-2">
-                                <select id="music-playlist-select" class="flex-1 bg-gray-800 text-white p-1 rounded text-[10px]"><option>Loading...</option></select>
-                                <button onclick="MusicPlayer.editPlaylist()" class="bg-gray-600 px-3 rounded text-[10px] hover:bg-gray-500">Edit</button>
-                                <button onclick="MusicPlayer.playSelected()" class="bg-blue-600 px-3 rounded text-[10px] hover:bg-blue-500">Play</button>
+                                <select id="music-playlist-select" class="flex-1 bg-gray-800 text-white p-2 rounded text-xs border border-gray-600 focus:border-blue-500 outline-none">
+                                    <option value="" disabled selected>Select Playlist...</option>
+                                </select>
                             </div>
-                            <div class="bg-gray-800 p-2 rounded"><input type="text" id="new-playlist-name" placeholder="New Playlist..." class="w-full bg-gray-900 text-white p-1 rounded text-[10px] mb-1"><button onclick="MusicPlayer.createPlaylist()" class="w-full bg-green-600 text-[10px] rounded py-1">Create</button></div>
+
+                            <div class="grid grid-cols-2 gap-2 mb-3">
+                                <button onclick="MusicPlayer.playSelected()" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 rounded text-xs flex items-center justify-center gap-1">
+                                    <span>▶</span> Play
+                                </button>
+                                <button onclick="MusicPlayer.editPlaylist()" class="bg-orange-600 hover:bg-orange-500 text-white font-bold py-2 rounded text-xs flex items-center justify-center gap-1">
+                                    <span>✏️</span> Edit / Delete
+                                </button>
+                            </div>
+
+                            <div class="bg-gray-800 p-2 rounded border border-gray-700">
+                                <div class="text-[10px] text-gray-400 mb-1">Create New Playlist</div>
+                                <div class="flex gap-2">
+                                    <input type="text" id="new-playlist-name" placeholder="Name..." class="flex-1 bg-gray-900 text-white p-1.5 rounded text-xs border border-gray-600 outline-none">
+                                    <button onclick="MusicPlayer.createPlaylist()" class="bg-green-600 hover:bg-green-500 text-white px-3 rounded text-xs font-bold">Create</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -243,7 +261,7 @@
                         </div>
 
                         <div class="mb-2">
-                            <input type="text" id="music-search" oninput="MusicPlayer.searchLibrary()" placeholder="🔍 Search library by name or description..." class="w-full bg-gray-800 text-white p-3 rounded text-sm border border-gray-600 focus:border-blue-500 outline-none">
+                            <input type="text" id="music-search" oninput="MusicPlayer.searchLibrary()" placeholder="🔍 Search library by name or description..." class="w-full bg-gray-800 text-white p-4 rounded text-base border border-gray-600 focus:border-blue-500 outline-none">
                         </div>
 
                         <div class="max-h-64 overflow-y-auto">
@@ -372,7 +390,6 @@
                             MusicPlayer.searchLibrary(); 
                         } 
                         else if (topic === CONSTANTS.TOPICS.QUEUE) { MusicPlayer.renderQueue(data); }
-                        // NEW: Handle playlist details
                         else if (topic === CONSTANTS.TOPICS.PLAYLIST_DETAILS) { MusicPlayer.openEditModal(data); }
                     } catch (e) { console.error("Parse Error", e); }
                 });
@@ -532,7 +549,7 @@
 
         const MusicPlayer = {
             randomMode: false,
-            currentEditingPlaylist: null, // NEW: Track which playlist is being edited
+            currentEditingPlaylist: null, 
 
             updateUI: (data) => {
                 if (!data.music_state) return;
@@ -547,7 +564,7 @@
             renderPlaylists: (list) => {
                 const sel = document.getElementById('music-playlist-select');
                 const targetSel = document.getElementById('target-playlist-select'); 
-                sel.innerHTML = '<option value="" disabled selected>Select...</option>';
+                sel.innerHTML = '<option value="" disabled selected>Select Playlist...</option>';
                 if(targetSel) targetSel.innerHTML = '<option value="">Add to...</option>';
                 list.forEach(pl => {
                     const opt = document.createElement('option');
@@ -568,10 +585,10 @@
                                 <div class="text-[10px] text-gray-500 truncate w-48">${song.filename}</div>
                             </td>
                             <td class="text-right">
-                                <div class="flex justify-end gap-5">
-                                    <button onclick="Mqtt.send('play_song_now', {song_id: ${song.id}})" class="text-blue-400 hover:text-white text-lg px-2" title="Play Now">▶</button>
-                                    <button onclick="Mqtt.send('add_to_queue', {song_id: ${song.id}})" class="text-green-400 hover:text-white text-lg px-2" title="Add to Queue">➕</button>
-                                    <button onclick="MusicPlayer.addToPlaylist(${song.id})" class="text-yellow-400 hover:text-white text-lg px-2" title="Save to Selected Playlist">💾</button>
+                                <div class="flex justify-end gap-4">
+                                    <button onclick="Mqtt.send('play_song_now', {song_id: ${song.id}})" class="bg-blue-900/50 hover:bg-blue-700 text-blue-400 hover:text-white text-lg px-2 rounded" title="Play Now">▶</button>
+                                    <button onclick="Mqtt.send('add_to_queue', {song_id: ${song.id}})" class="bg-green-900/50 hover:bg-green-700 text-green-400 hover:text-white text-lg px-2 rounded" title="Add to Queue">➕</button>
+                                    <button onclick="MusicPlayer.addToPlaylist(${song.id})" class="bg-yellow-900/50 hover:bg-yellow-700 text-yellow-400 hover:text-white text-lg px-2 rounded" title="Save to Selected Playlist">💾</button>
                                 </div>
                             </td>
                         </tr>`;
@@ -587,13 +604,13 @@
                         <td class="text-gray-400 w-4 text-xs">${idx+1}</td>
                         <td class="text-xs truncate max-w-[150px]">${song.description}</td>
                         <td class="text-right p-1">
-                            <button onclick="Mqtt.send('remove_from_queue', {queue_id: ${song.queue_id}})" class="text-red-400 hover:text-white font-bold px-2" title="Remove">➖</button>
+                            <button onclick="Mqtt.send('remove_from_queue', {queue_id: ${song.queue_id}})" class="bg-red-900/50 hover:bg-red-700 text-red-400 hover:text-white font-bold px-2 py-1 rounded" title="Remove">🗑</button>
                         </td>
                     </tr>`;
                 });
             },
             
-            // --- NEW: EDIT PLAYLIST FUNCTIONS ---
+            // --- EDIT PLAYLIST FUNCTIONS ---
             editPlaylist: () => {
                 const id = document.getElementById('music-playlist-select').value;
                 if(!id) return App.showToast("Select Playlist First!");
