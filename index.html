@@ -35,9 +35,25 @@
         #log-panel { transition: height 0.3s ease-in-out; }
         .data-table th { background-color: #1f2937; padding: 8px; text-align: left; font-size: 0.8rem; color: #9ca3af; }
         .data-table td { border-bottom: 1px solid #374151; padding: 8px; vertical-align: middle; }
+        
+        /* Modal Styles */
+        #modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; justify-content: center; align-items: center; }
+        #modal-content { background: #1f2937; padding: 20px; border-radius: 12px; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto; border: 1px solid #374151; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
     </style>
 </head>
 <body>
+
+    <div id="modal-overlay">
+        <div id="modal-content">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-bold text-white" id="modal-title">Edit Playlist</h2>
+                <button onclick="document.getElementById('modal-overlay').style.display='none'" class="text-gray-400 hover:text-white">✕</button>
+            </div>
+            <table class="w-full data-table">
+                <tbody id="modal-list"></tbody>
+            </table>
+        </div>
+    </div>
 
     <div id="login-overlay" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:9999; display:flex; justify-content:center; align-items:center;">
         <div class="bg-gray-800 p-8 rounded-2xl shadow-2xl w-96 text-center border border-gray-700">
@@ -197,7 +213,11 @@
                         </div>
                         <div class="bg-gray-900 p-3 rounded-xl border border-gray-700">
                             <h3 class="font-bold text-xs mb-2">Playlists</h3>
-                            <div class="flex gap-2 mb-2"><select id="music-playlist-select" class="flex-1 bg-gray-800 text-white p-1 rounded text-[10px]"><option>Loading...</option></select><button onclick="MusicPlayer.playSelected()" class="bg-blue-600 px-3 rounded text-[10px]">Play</button></div>
+                            <div class="flex gap-2 mb-2">
+                                <select id="music-playlist-select" class="flex-1 bg-gray-800 text-white p-1 rounded text-[10px]"><option>Loading...</option></select>
+                                <button onclick="MusicPlayer.editPlaylist()" class="bg-gray-600 px-3 rounded text-[10px] hover:bg-gray-500">Edit</button>
+                                <button onclick="MusicPlayer.playSelected()" class="bg-blue-600 px-3 rounded text-[10px] hover:bg-blue-500">Play</button>
+                            </div>
                             <div class="bg-gray-800 p-2 rounded"><input type="text" id="new-playlist-name" placeholder="New Playlist..." class="w-full bg-gray-900 text-white p-1 rounded text-[10px] mb-1"><button onclick="MusicPlayer.createPlaylist()" class="w-full bg-green-600 text-[10px] rounded py-1">Create</button></div>
                         </div>
                     </div>
@@ -248,7 +268,12 @@
             BROKER: "wss://t7ef11fa.ala.asia-southeast1.emqxsl.com:8084/mqtt",
             AUTH_MAP: { "admin": { u: "c2tw", p: "QnViYmxlQDEw" }, "farm":  { u: "c2tw", p: "QnViYmxlQDEw" } },
             SIMPLE_PASS: "1234",
-            TOPICS: { CMD: "farm/commands", STATUS: "farm/status", LOGS: "farm/logs", PLAYLISTS: "farm/status/playlists", SCHEDULE: "farm/status/schedule", LIBRARY: "farm/status/library", QUEUE: "farm/status/queue" }
+            TOPICS: { 
+                CMD: "farm/commands", STATUS: "farm/status", LOGS: "farm/logs", 
+                PLAYLISTS: "farm/status/playlists", SCHEDULE: "farm/status/schedule", 
+                LIBRARY: "farm/status/library", QUEUE: "farm/status/queue",
+                PLAYLIST_DETAILS: "farm/status/playlist_details" // NEW TOPIC
+            }
         };
 
         const DATA = {
@@ -344,10 +369,11 @@
                         else if (topic === CONSTANTS.TOPICS.SCHEDULE) { Scheduler.renderTable(data); } 
                         else if (topic === CONSTANTS.TOPICS.LIBRARY) { 
                             DATA.libraryCache = data; 
-                            // Call search to re-render, keeping filter if exists
                             MusicPlayer.searchLibrary(); 
                         } 
                         else if (topic === CONSTANTS.TOPICS.QUEUE) { MusicPlayer.renderQueue(data); }
+                        // NEW: Handle playlist details
+                        else if (topic === CONSTANTS.TOPICS.PLAYLIST_DETAILS) { MusicPlayer.openEditModal(data); }
                     } catch (e) { console.error("Parse Error", e); }
                 });
                 Mqtt.client.on('offline', () => { Mqtt.updateStatusUI(false); Logger.log("Connection Lost"); });
@@ -506,6 +532,8 @@
 
         const MusicPlayer = {
             randomMode: false,
+            currentEditingPlaylist: null, // NEW: Track which playlist is being edited
+
             updateUI: (data) => {
                 if (!data.music_state) return;
                 const m = data.music_state;
@@ -535,7 +563,8 @@
                     tbody.innerHTML += `
                         <tr>
                             <td class="text-gray-500 text-center w-8">${idx+1}</td>
-                            <td class="pl-4"> <div class="font-bold text-sm text-gray-200 truncate w-48">${song.description}</div>
+                            <td class="pl-4">
+                                <div class="font-bold text-sm text-gray-200 truncate w-48">${song.description}</div>
                                 <div class="text-[10px] text-gray-500 truncate w-48">${song.filename}</div>
                             </td>
                             <td class="text-right">
@@ -551,13 +580,51 @@
             renderQueue: (items) => {
                 const tbody = document.getElementById('music-queue-list');
                 tbody.innerHTML = "";
-                if(!items || items.length === 0) { tbody.innerHTML = '<tr><td class="text-gray-500 text-center text-xs">Empty</td></tr>'; return; }
-                items.forEach((song, idx) => { tbody.innerHTML += `<tr class="border-b border-gray-700"><td class="text-gray-400 w-4 text-xs">${idx+1}</td><td class="text-xs truncate max-w-[100px]">${song.description}</td></tr>`; });
+                if(!items || items.length === 0) { tbody.innerHTML = '<tr><td colspan="3" class="text-gray-500 text-center text-xs">Empty</td></tr>'; return; }
+                items.forEach((song, idx) => {
+                    tbody.innerHTML += `
+                    <tr class="border-b border-gray-700">
+                        <td class="text-gray-400 w-4 text-xs">${idx+1}</td>
+                        <td class="text-xs truncate max-w-[150px]">${song.description}</td>
+                        <td class="text-right p-1">
+                            <button onclick="Mqtt.send('remove_from_queue', {queue_id: ${song.queue_id}})" class="text-red-400 hover:text-white font-bold px-2" title="Remove">➖</button>
+                        </td>
+                    </tr>`;
+                });
             },
+            
+            // --- NEW: EDIT PLAYLIST FUNCTIONS ---
+            editPlaylist: () => {
+                const id = document.getElementById('music-playlist-select').value;
+                if(!id) return App.showToast("Select Playlist First!");
+                Mqtt.send('get_playlist_details', {id: parseInt(id)});
+            },
+            openEditModal: (details) => {
+                MusicPlayer.currentEditingPlaylist = details.id;
+                document.getElementById('modal-title').innerText = "Edit: " + details.name.replace(/_/g, ' ');
+                const tbody = document.getElementById('modal-list');
+                tbody.innerHTML = "";
+                
+                if (details.songs.length === 0) {
+                    tbody.innerHTML = '<tr><td class="text-gray-500 text-center p-4">Playlist is empty</td></tr>';
+                } else {
+                    details.songs.forEach((song, idx) => {
+                        tbody.innerHTML += `
+                        <tr class="border-b border-gray-700">
+                            <td class="p-2 text-gray-400 text-xs">${idx+1}</td>
+                            <td class="p-2 text-sm text-white">${song.description}</td>
+                            <td class="p-2 text-right">
+                                <button onclick="Mqtt.send('remove_from_playlist', {playlist_id: ${details.id}, song_id: ${song.id}})" class="text-red-400 hover:text-red-200 text-lg">🗑</button>
+                            </td>
+                        </tr>`;
+                    });
+                }
+                document.getElementById('modal-overlay').style.display = 'flex';
+            },
+
             playSelected: () => { const id = document.getElementById('music-playlist-select').value; if(id) Mqtt.send('play_playlist', {id: parseInt(id)}); },
             addToPlaylist: (songId) => { const plId = document.getElementById('target-playlist-select')?.value; if(!plId) return App.showToast("Select Playlist!"); Mqtt.send('add_to_playlist', {playlist_id: parseInt(plId), song_id: songId}); },
             createPlaylist: () => { const name = document.getElementById('new-playlist-name').value; if(name) { Mqtt.send('create_playlist', {name: name}); document.getElementById('new-playlist-name').value = ""; } },
-            // NEW: Add File Function
             addFile: () => { 
                 const fn = document.getElementById('new-file-path').value; 
                 const desc = document.getElementById('new-file-desc').value; 
@@ -569,7 +636,6 @@
                     alert("Please enter both filename and description");
                 }
             },
-            // NEW: Search/Filter Function
             searchLibrary: () => {
                 const term = document.getElementById('music-search').value.toLowerCase();
                 const filtered = DATA.libraryCache.filter(song => 
