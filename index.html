@@ -181,10 +181,10 @@
                     <div class="bg-gray-900 p-3 rounded-xl border border-gray-700">
                         <h3 class="text-xs font-bold mb-2">IR Remote</h3>
                         <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
-                            <button onclick="Mqtt.send('send_ir', {signal: 'ON'})" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 rounded text-xs">ON</button>
-                            <button onclick="Mqtt.send('send_ir', {signal: 'OFF'})" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 rounded text-xs">OFF</button>
-                            <button onclick="Mqtt.send('send_ir', {signal: 'BUTTON_1'})" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 rounded text-xs">BTN 1</button>
-                            <button onclick="Mqtt.send('send_ir', {signal: 'BUTTON_4'})" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 rounded text-xs">BTN 4</button>
+                            <button onclick="Mqtt.send('send_ir', {signal: 'on'})" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 rounded text-xs">ON</button>
+                            <button onclick="Mqtt.send('send_ir', {signal: 'off'})" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 rounded text-xs">OFF</button>
+                            <button onclick="Mqtt.send('send_ir', {signal: 'button_1'})" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 rounded text-xs">BTN 1</button>
+                            <button onclick="Mqtt.send('send_ir', {signal: 'button_4'})" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 rounded text-xs">BTN 4</button>
                         </div>
                     </div>
                 </div>
