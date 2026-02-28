@@ -557,12 +557,12 @@ const ControlPanel = {
             const relays=data.raw_device_states.relays||{}, inputs=data.raw_device_states.inputs||{};
             DATA.pumps.forEach(p=>['own_solar','sarkari_solar'].forEach(src=>{
                 const iv=inputs[`FEEDBACK_${src}_${p}`], rc=DATA.RELAY_CHANNELS[`pumps_${src}`]?.[p];
-                const on=iv!==undefined ? !!iv : !!(rc&&relays[rc]);
+                const on=iv!==undefined ? !!iv : !!(rc&&relays[String(rc)]);
                 const b=document.getElementById(`bulb-pump-${src}-${p}`); if(b) b.classList.toggle('on',on);
             }));
             [...DATA.valves,...DATA.irrigation].forEach(v=>{
                 const iv=inputs[`VALVE_FEEDBACK_${v}`], rc=DATA.RELAY_CHANNELS.pumping_valves[v]||DATA.RELAY_CHANNELS.irrigation_valves[v];
-                const on=iv!==undefined ? !!iv : !!(rc&&relays[rc]);
+                const on=iv!==undefined ? !!iv : !!(rc&&relays[String(rc)]);
                 const b=document.getElementById(`bulb-valve-${v}`); if(b) b.classList.toggle('on',on);
             });
         }
