@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Farm Automation System</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #111827; color: #e5e7eb; overflow: hidden; }
+        .hidden-view { display: none !important; }
+        .active-view { display: block !important; animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        .status-dot-pulse { animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #1f2937; }
+        ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; }
+        .led-bulb {
+            display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+            background-color: #374151; border: 1px solid #1f2937;
+            box-shadow: inset 0 0 2px rgba(0,0,0,0.5); transition: all 0.3s ease; margin-right: 6px;
+        }
+        .led-bulb.on {
+            background-color: #22c55e;
+            box-shadow: 0 0 6px #22c55e, inset 0 0 2px rgba(255,255,255,0.8); border-color: #166534;
+        }
+        .valve-toggle:checked ~ .dot { transform: translateX(100%); background-color: #22c55e; }
+        .nav-btn.active { background-color: #2563eb; color: white; border-color: #3b82f6; }
+        #log-panel { transition: height 0.3s ease-in-out; }
+        .data-table th { background-color: #1f2937; padding: 8px; text-align: left; font-size: 0.8rem; color: #9ca3af; }
+        .data-table td { border-bottom: 1px solid #374151; padding: 8px; vertical-align: middle; }
+        #modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; justify-content: center; align-items: center; }
+        #modal-content { background: #1f2937; padding: 20px; border-radius: 12px; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto; border: 1px solid #374151; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+    </style>
+</head>
+<body>
+
+    <!-- Edit Playlist Modal -->
+    <div id="modal-overlay">
+        <div id="modal-content">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-bold text-white" id="modal-title">Edit Playlist</h2>
+                <button onclick="document.getElementById('modal-overlay').style.display='none'" class="text-gray-400 hover:text-white bg-gray-700 rounded px-2">✕ Close</button>
+            </div>
+            <p class="text-xs text-gray-400 mb-2">Click trash icon to remove song from this playlist.</p>
+            <table class="w-full data-table"><tbody id="modal-list"></tbody></table>
+        </div>
+    </div>
+
+    <!-- Login Screen -->
+    <div id="login-overlay" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:9999; display:flex; justify-content:center; align-items:center;">
+        <div class="bg-gray-800 p-8 rounded-2xl shadow-2xl w-96 text-center border border-gray-700">
+            <h2 class="text-2xl font-bold text-white mb-4">Secure Farm Access</h2>
+            <input type="text" id="login-user" placeholder="Username" class="w-full bg-gray-700 text-white p-3 rounded-lg mb-3">
+            <input type="password" id="login-pass" placeholder="PIN" class="w-full bg-gray-700 text-white p-3 rounded-lg mb-6">
+            <button onclick="App.attemptLogin()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg">Access System</button>
+            <p id="login-error" class="text-red-500 text-sm mt-3 hidden">Invalid Credentials</p>
+        </div>
+    </div>
+
+    <!-- Main App -->
+    <div id="app-container" class="hidden-view flex flex-col md:flex-row h-screen">
+
+        <!-- Sidebar Navigation -->
+        <nav class="bg-gray-900 w-full md:w-64 flex-shrink-0 border-r border-gray-800 flex flex-col z-20 shadow-xl">
+            <div class="px-2 py-1 border-b border-gray-800 flex justify-between items-center bg-gray-900">
+                <div class="flex items-center space-x-2">
+                    <i data-lucide="tractor" class="w-5 h-5 text-green-500"></i>
+                    <div>
+                        <h1 class="font-bold text-white text-sm leading-none">FarmOS</h1>
+                        <div class="flex items-center space-x-1.5 mt-0.5">
+                            <div id="global-status-dot" class="w-1.5 h-1.5 rounded-full bg-red-500"></div>
+                            <span id="global-status-text" class="text-[9px] text-gray-400 uppercase font-mono leading-none">Offline</span>
+                        </div>
+                    </div>
+                </div>
+                <button onclick="location.reload()" class="bg-red-900/20 hover:bg-red-900 p-1.5 rounded text-red-400">
+                    <i data-lucide="log-out" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <div class="p-1 grid grid-cols-4 gap-1 md:flex md:flex-col md:space-y-2 md:p-4 bg-gray-900">
+                <button onclick="App.switchView('control')" class="nav-btn active flex flex-col items-center justify-center py-2 rounded-lg text-gray-400 hover:bg-gray-800"><i data-lucide="layout-dashboard" class="w-4 h-4 mb-0.5"></i><span class="text-[10px] font-medium leading-none">Control</span></button>
+                <button onclick="App.switchView('music')" class="nav-btn flex flex-col items-center justify-center py-2 rounded-lg text-gray-400 hover:bg-gray-800"><i data-lucide="music" class="w-4 h-4 mb-0.5"></i><span class="text-[10px] font-medium leading-none">Music</span></button>
+                <button onclick="App.switchView('scheduler')" class="nav-btn flex flex-col items-center justify-center py-2 rounded-lg text-gray-400 hover:bg-gray-800"><i data-lucide="calendar" class="w-4 h-4 mb-0.5"></i><span class="text-[10px] font-medium leading-none">Sched</span></button>
+                <button onclick="App.switchView('diag')" class="nav-btn flex flex-col items-center justify-center py-2 rounded-lg text-gray-400 hover:bg-gray-800"><i data-lucide="wrench" class="w-4 h-4 mb-0.5"></i><span class="text-[10px] font-medium leading-none">Diag</span></button>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <div class="flex-1 flex flex-col overflow-hidden relative">
+            <main class="flex-1 p-2 md:p-6 overflow-y-auto bg-gray-800 pb-44 md:pb-60">
+
+                <!-- CONTROL VIEW -->
+                <div id="view-control" class="active-view space-y-3">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+
+                        <!-- Live Status -->
+                        <div class="bg-gray-900 p-3 rounded-xl border border-gray-700 shadow">
+                            <h3 class="text-xs font-bold text-white mb-2">Live Status</h3>
+                            <div class="bg-gray-800 p-2 rounded mb-2 text-xs text-gray-400">Running: <span id="cp-running-pumps" class="text-white font-mono">None</span></div>
+                            <div class="grid grid-cols-2 gap-2 text-center">
+                                <div class="bg-gray-800 p-2 rounded"><span class="text-[10px] block text-gray-400">HILL TANK</span><span id="cp-tank-hill" class="font-bold text-white text-xs">Unknown</span></div>
+                                <div class="bg-gray-800 p-2 rounded"><span class="text-[10px] block text-gray-400">HOUSE TANK</span><span id="cp-tank-house" class="font-bold text-white text-xs">Unknown</span></div>
+                            </div>
+                            <!-- VFD Status Row -->
+                            <div class="grid grid-cols-2 gap-2 text-center mt-2">
+                                <div class="bg-gray-800 p-2 rounded">
+                                    <span class="text-[10px] block text-gray-400">VFD OWN SOLAR</span>
+                                    <span id="cp-vfd-own_solar" class="font-bold text-xs text-gray-400">Unknown</span>
+                                </div>
+                                <div class="bg-gray-800 p-2 rounded">
+                                    <span class="text-[10px] block text-gray-400">VFD SARKARI</span>
+                                    <span id="cp-vfd-sarkari_solar" class="font-bold text-xs text-gray-400">Unknown</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Solar Pumps -->
+                        <div class="bg-gray-900 p-3 rounded-xl border border-gray-700 shadow">
+                            <h3 class="text-xs font-bold text-white mb-2">Solar Pumps</h3>
+                            <div class="grid grid-cols-2 gap-2">
+                                <!-- Own Solar -->
+                                <div>
+                                    <h4 class="text-[10px] uppercase text-gray-500 font-bold mb-1">Own Solar</h4>
+                                    <div class="space-y-1">
+                                        <button onclick="Mqtt.send('start_pump', {pump:'gate_bore', source:'own_solar'})" class="w-full bg-gray-700 hover:bg-gray-600 text-white py-1 px-2 rounded text-[10px] text-left border border-gray-600 flex items-center"><span id="bulb-pump-own_solar-gate_bore" class="led-bulb"></span> Gate Bore</button>
+                                        <button onclick="Mqtt.send('start_pump', {pump:'talaab_bore', source:'own_solar'})" class="w-full bg-gray-700 hover:bg-gray-600 text-white py-1 px-2 rounded text-[10px] text-left border border-gray-600 flex items-center"><span id="bulb-pump-own_solar-talaab_bore" class="led-bulb"></span> Talaab Bore</button>
+                                        <button onclick="Mqtt.send('start_pump', {pump:'pandubbi', source:'own_solar'})" class="w-full bg-gray-700 hover:bg-gray-600 text-white py-1 px-2 rounded text-[10px] text-left border border-gray-600 flex items-center"><span id="bulb-pump-own_solar-pandubbi" class="led-bulb"></span> Pandubbi</button>
+                                        <button onclick="Mqtt.send('start_pump', {pump:'sarkari', source:'own_solar'})" class="w-full bg-gray-700 hover:bg-gray-600 text-white py-1 px-2 rounded text-[10px] text-left border border-gray-600 flex items-center"><span id="bulb-pump-own_solar-sarkari" class="led-bulb"></span> Sarkari</button>
+                                        <button onclick="Mqtt.send('start_pump', {pump:'middle', source:'own_solar'})" class="w-full bg-gray-700 hover:bg-gray-600 text-white py-1 px-2 rounded text-[10px] text-left border border-gray-600 flex items-center"><span id="bulb-pump-own_solar-middle" class="led-bulb"></span> Middle</button>
+                                    </div>
+                                    <button onclick="Mqtt.send('stop_string', {source: 'own_solar'})" class="w-full mt-2 bg-red-900/40 hover:bg-red-900 text-red-200 text-[10px] py-1 rounded border border-red-800">STOP VFD</button>
+                                </div>
+                                <!-- Sarkari Solar -->
+                                <div>
+                                    <h4 class="text-[10px] uppercase text-gray-500 font-bold mb-1">Sarkari Solar</h4>
+                                    <div class="space-y-1">
+                                        <button onclick="Mqtt.send('start_pump', {pump:'gate_bore', source:'sarkari_solar'})" class="w-full bg-gray-700 hover:bg-gray-600 text-white py-1 px-2 rounded text-[10px] text-left border border-gray-600 flex items-center"><span id="bulb-pump-sarkari_solar-gate_bore" class="led-bulb"></span> Gate Bore</button>
+                                        <button onclick="Mqtt.send('start_pump', {pump:'talaab_bore', source:'sarkari_solar'})" class="w-full bg-gray-700 hover:bg-gray-600 text-white py-1 px-2 rounded text-[10px] text-left border border-gray-600 flex items-center"><span id="bulb-pump-sarkari_solar-talaab_bore" class="led-bulb"></span> Talaab Bore</button>
+                                        <button onclick="Mqtt.send('start_pump', {pump:'pandubbi', source:'sarkari_solar'})" class="w-full bg-gray-700 hover:bg-gray-600 text-white py-1 px-2 rounded text-[10px] text-left border border-gray-600 flex items-center"><span id="bulb-pump-sarkari_solar-pandubbi" class="led-bulb"></span> Pandubbi</button>
+                                        <button onclick="Mqtt.send('start_pump', {pump:'sarkari', source:'sarkari_solar'})" class="w-full bg-gray-700 hover:bg-gray-600 text-white py-1 px-2 rounded text-[10px] text-left border border-gray-600 flex items-center"><span id="bulb-pump-sarkari_solar-sarkari" class="led-bulb"></span> Sarkari</button>
+                                        <button onclick="Mqtt.send('start_pump', {pump:'middle', source:'sarkari_solar'})" class="w-full bg-gray-700 hover:bg-gray-600 text-white py-1 px-2 rounded text-[10px] text-left border border-gray-600 flex items-center"><span id="bulb-pump-sarkari_solar-middle" class="led-bulb"></span> Middle</button>
+                                    </div>
+                                    <button onclick="Mqtt.send('stop_string', {source: 'sarkari_solar'})" class="w-full mt-2 bg-red-900/40 hover:bg-red-900 text-red-200 text-[10px] py-1 rounded border border-red-800">STOP VFD</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Pumping Valves -->
+                        <div class="bg-gray-900 p-3 rounded-xl border border-gray-700 shadow">
+                            <h3 class="text-xs font-bold text-white mb-2">Pumping Valves</h3>
+                            <div class="space-y-2">
+                                <label class="flex justify-between items-center bg-gray-800 p-2 rounded cursor-pointer border border-gray-700">
+                                    <div class="flex items-center"><span id="bulb-valve-bore_valves" class="led-bulb"></span><span class="text-gray-300 font-medium capitalize text-xs">Bore Valves</span></div>
+                                    <div class="relative w-10 h-5"><input type="checkbox" class="sr-only valve-toggle cp-valve-check" data-name="bore_valves"><div class="block bg-gray-600 w-full h-full rounded-full"></div><div class="dot absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition-transform"></div></div>
+                                </label>
+                                <label class="flex justify-between items-center bg-gray-800 p-2 rounded cursor-pointer border border-gray-700">
+                                    <div class="flex items-center"><span id="bulb-valve-talaab_valves" class="led-bulb"></span><span class="text-gray-300 font-medium capitalize text-xs">Talaab Valves</span></div>
+                                    <div class="relative w-10 h-5"><input type="checkbox" class="sr-only valve-toggle cp-valve-check" data-name="talaab_valves"><div class="block bg-gray-600 w-full h-full rounded-full"></div><div class="dot absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition-transform"></div></div>
+                                </label>
+                                <label class="flex justify-between items-center bg-gray-800 p-2 rounded cursor-pointer border border-gray-700">
+                                    <div class="flex items-center"><span id="bulb-valve-pandubbi_valves" class="led-bulb"></span><span class="text-gray-300 font-medium capitalize text-xs">Pandubbi Valves</span></div>
+                                    <div class="relative w-10 h-5"><input type="checkbox" class="sr-only valve-toggle cp-valve-check" data-name="pandubbi_valves"><div class="block bg-gray-600 w-full h-full rounded-full"></div><div class="dot absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition-transform"></div></div>
+                                </label>
+                                <label class="flex justify-between items-center bg-gray-800 p-2 rounded cursor-pointer border border-gray-700">
+                                    <div class="flex items-center"><span id="bulb-valve-farm_house_valves" class="led-bulb"></span><span class="text-gray-300 font-medium capitalize text-xs">Farm House Valves</span></div>
+                                    <div class="relative w-10 h-5"><input type="checkbox" class="sr-only valve-toggle cp-valve-check" data-name="farm_house_valves"><div class="block bg-gray-600 w-full h-full rounded-full"></div><div class="dot absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition-transform"></div></div>
+                                </label>
+                            </div>
+                            <button onclick="ControlPanel.updateValves()" class="w-full mt-3 bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 rounded text-xs">Update Valves</button>
+                        </div>
+
+                        <!-- Irrigation Areas -->
+                        <div class="bg-gray-900 p-3 rounded-xl border border-gray-700 shadow">
+                            <h3 class="text-xs font-bold text-white mb-2">Irrigation Areas</h3>
+                            <div class="space-y-2">
+                                <label class="flex justify-between items-center bg-gray-800 p-2 rounded cursor-pointer border border-gray-700">
+                                    <div class="flex items-center"><span id="bulb-valve-upper_hill_mango" class="led-bulb"></span><span class="text-gray-300 font-medium capitalize text-xs">Upper Hill Mango</span></div>
+                                    <div class="relative w-10 h-5"><input type="checkbox" class="sr-only valve-toggle cp-irrig-check" data-name="upper_hill_mango"><div class="block bg-gray-600 w-full h-full rounded-full"></div><div class="dot absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition-transform"></div></div>
+                                </label>
+                                <label class="flex justify-between items-center bg-gray-800 p-2 rounded cursor-pointer border border-gray-700">
+                                    <div class="flex items-center"><span id="bulb-valve-lower_hill_mango" class="led-bulb"></span><span class="text-gray-300 font-medium capitalize text-xs">Lower Hill Mango</span></div>
+                                    <div class="relative w-10 h-5"><input type="checkbox" class="sr-only valve-toggle cp-irrig-check" data-name="lower_hill_mango"><div class="block bg-gray-600 w-full h-full rounded-full"></div><div class="dot absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition-transform"></div></div>
+                                </label>
+                                <label class="flex justify-between items-center bg-gray-800 p-2 rounded cursor-pointer border border-gray-700">
+                                    <div class="flex items-center"><span id="bulb-valve-lemon" class="led-bulb"></span><span class="text-gray-300 font-medium capitalize text-xs">Lemon</span></div>
+                                    <div class="relative w-10 h-5"><input type="checkbox" class="sr-only valve-toggle cp-irrig-check" data-name="lemon"><div class="block bg-gray-600 w-full h-full rounded-full"></div><div class="dot absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition-transform"></div></div>
+                                </label>
+                            </div>
+                            <button onclick="ControlPanel.updateIrrigation()" class="w-full mt-3 bg-green-600 hover:bg-green-700 text-white font-bold py-2 rounded text-xs">Update Irrigation</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- DIAGNOSTICS VIEW -->
+                <!-- IR Remote section removed — solar controllers replaced by VFDs -->
+                <div id="view-diag" class="hidden-view space-y-3">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                        <div class="bg-gray-900 p-3 rounded-xl border border-gray-700">
+                            <h3 class="text-xs font-bold mb-2">Relays 1–15</h3>
+                            <div id="diag-relays-1" class="space-y-1 max-h-80 overflow-y-auto"></div>
+                        </div>
+                        <div class="bg-gray-900 p-3 rounded-xl border border-gray-700">
+                            <h3 class="text-xs font-bold mb-2">Relays 16–30</h3>
+                            <div id="diag-relays-2" class="space-y-1 max-h-80 overflow-y-auto"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MUSIC VIEW -->
+                <div id="view-music" class="hidden-view space-y-3 max-w-4xl mx-auto">
+                    <div class="bg-gray-900 p-3 rounded-xl border border-gray-700 text-center">
+                        <h2 class="text-sm font-bold text-white mb-1">Now Playing</h2>
+                        <div id="music-title" class="text-lg font-bold text-blue-400 mb-0 truncate">Nothing</div>
+                        <div id="music-status" class="text-[10px] text-gray-500 mb-3">Stopped</div>
+                        <div class="flex items-center space-x-3 mb-3 bg-gray-800 p-2 rounded-lg"><span>🔈</span><input type="range" min="0" max="100" value="100" class="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer" onchange="Mqtt.send('set_volume', {level: this.value})"><span>🔊</span></div>
+                        <div class="grid grid-cols-4 gap-2 mb-2">
+                            <button onclick="Mqtt.send('prev_song')" class="bg-gray-700 p-2 rounded">|&lt;</button>
+                            <button onclick="Mqtt.send('seek_relative', {seconds: -10})" class="bg-gray-700 p-2 rounded">-10s</button>
+                            <button onclick="Mqtt.send('seek_relative', {seconds: 10})" class="bg-gray-700 p-2 rounded">+10s</button>
+                            <button onclick="Mqtt.send('next_song')" class="bg-gray-700 p-2 rounded">&gt;|</button>
+                        </div>
+                        <div class="flex gap-2">
+                            <button id="btn-shuffle" onclick="MusicPlayer.toggleShuffle()" class="flex-1 bg-gray-700 p-2 rounded text-[10px] font-bold">🔀 Shuffle</button>
+                            <button onclick="Mqtt.send('stop_music')" class="flex-[2] bg-red-600 hover:bg-red-700 text-white p-2 rounded text-[10px] font-bold">STOP ALL</button>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                        <div class="bg-gray-900 p-3 rounded-xl border border-gray-700">
+                            <div class="flex justify-between items-center mb-2"><h3 class="font-bold text-xs">Queue</h3><button onclick="Mqtt.send('clear_queue')" class="text-red-400 text-[10px]">Clear</button></div>
+                            <div class="h-32 overflow-y-auto"><table class="w-full data-table"><tbody id="music-queue-list"></tbody></table></div>
+                        </div>
+                        <div class="bg-gray-900 p-3 rounded-xl border border-gray-700">
+                            <h3 class="font-bold text-xs mb-2">Playlists</h3>
+                            <div class="flex gap-2 mb-2">
+                                <select id="music-playlist-select" class="flex-1 bg-gray-800 text-white p-2 rounded text-xs border border-gray-600 focus:border-blue-500 outline-none"><option value="" disabled selected>Select Playlist...</option></select>
+                            </div>
+                            <div class="grid grid-cols-2 gap-2 mb-3">
+                                <button onclick="MusicPlayer.playSelected()" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 rounded text-xs flex items-center justify-center gap-1"><span>▶</span> Play</button>
+                                <button onclick="MusicPlayer.editPlaylist()" class="bg-orange-600 hover:bg-orange-500 text-white font-bold py-2 rounded text-xs flex items-center justify-center gap-1"><span>✏️</span> Edit / Delete</button>
+                            </div>
+                            <div class="bg-gray-800 p-2 rounded border border-gray-700">
+                                <div class="text-[10px] text-gray-400 mb-1">Create New Playlist</div>
+                                <div class="flex gap-2">
+                                    <input type="text" id="new-playlist-name" placeholder="Name..." class="flex-1 bg-gray-900 text-white p-1.5 rounded text-xs border border-gray-600 outline-none">
+                                    <button onclick="MusicPlayer.createPlaylist()" class="bg-green-600 hover:bg-green-500 text-white px-3 rounded text-xs font-bold">Create</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-gray-900 p-3 rounded-xl border border-gray-700">
+                        <div class="flex justify-between items-center mb-2">
+                            <h3 class="font-bold text-xs">Library</h3>
+                            <div class="flex items-center gap-1">
+                                <select id="target-playlist-select" class="bg-gray-800 text-gray-300 p-1 rounded text-[10px] w-24 border border-gray-600 focus:border-blue-500 outline-none"><option value="">Add to...</option></select>
+                                <button onclick="MusicPlayer.playAll(false)" class="bg-purple-600 px-2 py-1 rounded text-[10px]">Seq</button>
+                                <button onclick="MusicPlayer.playAll(true)" class="bg-pink-600 px-2 py-1 rounded text-[10px]">Mix</button>
+                                <button onclick="Mqtt.send('get_library')" class="bg-gray-700 px-2 py-1 rounded text-[10px]">↻</button>
+                            </div>
+                        </div>
+                        <div class="bg-gray-800 p-2 rounded mb-2 border border-gray-700">
+                            <div class="text-[10px] text-gray-400 mb-1 font-bold">Add New Song</div>
+                            <div class="flex gap-2">
+                                <input type="text" id="new-file-path" placeholder="File Name (e.g. songs/track1.mp3)" class="flex-1 bg-gray-900 text-white p-1 rounded text-[10px] border border-gray-600 focus:border-blue-500 outline-none">
+                                <input type="text" id="new-file-desc" placeholder="Description / Title" class="flex-1 bg-gray-900 text-white p-1 rounded text-[10px] border border-gray-600 focus:border-blue-500 outline-none">
+                                <button onclick="MusicPlayer.addFile()" class="bg-green-600 hover:bg-green-700 text-white px-3 rounded text-[10px] font-bold">Add</button>
+                            </div>
+                        </div>
+                        <div class="mb-2">
+                            <input type="text" id="music-search" oninput="MusicPlayer.searchLibrary()" placeholder="🔍 Search library..." class="w-full bg-gray-800 text-white p-4 rounded text-base border border-gray-600 focus:border-blue-500 outline-none">
+                        </div>
+                        <div class="max-h-64 overflow-y-auto">
+                            <table class="w-full data-table text-[10px]"><tbody id="music-library-list"></tbody></table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SCHEDULER VIEW -->
+                <div id="view-scheduler" class="hidden-view space-y-3 max-w-3xl mx-auto">
+                    <div class="bg-gray-900 p-3 rounded-xl border border-gray-700">
+                        <h2 class="text-sm font-bold text-white mb-2">New Task</h2>
+                        <div class="grid grid-cols-2 gap-2 mb-2">
+                            <div><label class="text-[10px] text-gray-400">Type</label><select id="sched-type" onchange="Scheduler.updateDeviceList()" class="w-full bg-gray-800 p-1.5 rounded border border-gray-600 text-xs"><option value="pump">Pump</option><option value="valve">Valve</option><option value="music">Music</option></select></div>
+                            <div><label class="text-[10px] text-gray-400">Device</label><select id="sched-name" class="w-full bg-gray-800 p-1.5 rounded border border-gray-600 text-xs"></select></div>
+                            <div id="sched-source-wrapper"><label class="text-[10px] text-gray-400">Source</label><select id="sched-source" class="w-full bg-gray-800 p-1.5 rounded border border-gray-600 text-xs"><option value="own_solar">Own Solar</option><option value="sarkari_solar">Sarkari Solar</option></select></div>
+                            <div><label class="text-[10px] text-gray-400">Start</label><input type="datetime-local" id="sched-time" class="w-full bg-gray-800 p-1.5 rounded border border-gray-600 text-xs"></div>
+                            <div class="col-span-2"><label class="text-[10px] text-gray-400">Duration (minutes)</label><input type="number" id="sched-duration" value="60" class="w-full bg-gray-800 p-1.5 rounded border border-gray-600 text-xs"></div>
+                        </div>
+                        <button onclick="Scheduler.saveTask()" class="w-full bg-blue-600 text-white font-bold py-1.5 rounded text-xs">Schedule</button>
+                    </div>
+                    <div class="bg-gray-900 p-3 rounded-xl border border-gray-700">
+                        <h3 class="font-bold text-xs mb-2">Active Tasks <button onclick="Mqtt.send('get_schedule')" class="text-blue-400 text-xs ml-2">↻</button></h3>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-[10px] text-gray-400">
+                                <thead class="bg-gray-800"><tr><th class="p-2">Device</th><th class="p-2">Start</th><th class="p-2">Status</th><th class="p-2 text-right">X</th></tr></thead>
+                                <tbody id="sched-list"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+            </main>
+        </div>
+    </div>
+
+    <!-- Log Panel -->
+    <div id="log-panel" class="fixed bottom-0 left-0 w-full bg-gray-900 border-t border-gray-700 z-50 flex flex-col h-40 shadow-[0_-5px_15px_rgba(0,0,0,0.5)]">
+        <div class="flex justify-between items-center px-4 py-2 bg-gray-800 border-b border-gray-700 cursor-pointer hover:bg-gray-700 transition-colors" onclick="App.toggleLogHeight()">
+            <div class="flex items-center space-x-2"><i data-lucide="terminal" class="w-4 h-4 text-green-400"></i><span class="text-xs font-bold text-gray-300">SYSTEM LOGS</span></div>
+            <div class="flex items-center space-x-3">
+                <button onclick="event.stopPropagation(); Logger.clear()" class="text-[10px] text-red-400 border border-red-900 px-2 py-0.5 rounded hover:bg-red-900">CLEAR</button>
+                <i id="log-chevron" data-lucide="chevron-down" class="w-4 h-4 text-gray-400 transition-transform"></i>
+            </div>
+        </div>
+        <pre id="universal-log" class="flex-1 p-3 overflow-y-auto font-mono text-xs text-green-400 whitespace-pre-wrap break-words bg-black/50"></pre>
+    </div>
+    <div id="toast" class="fixed bottom-44 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white py-2 px-6 rounded-full shadow-lg opacity-0 transition-opacity duration-300 pointer-events-none z-50 text-xs">Action Sent</div>
+
+    <script>
+        const CONSTANTS = {
+            BROKER: "wss://t7ef11fa.ala.asia-southeast1.emqxsl.com:8084/mqtt",
+            AUTH_MAP: { "admin": { u: "c2tw", p: "QnViYmxlQDEw" }, "farm": { u: "c2tw", p: "QnViYmxlQDEw" } },
+            SIMPLE_PASS: "1234",
+            TOPICS: {
+                CMD: "farm/commands", STATUS: "farm/status", LOGS: "farm/logs",
+                PLAYLISTS: "farm/status/playlists", SCHEDULE: "farm/status/schedule",
+                LIBRARY: "farm/status/library", QUEUE: "farm/status/queue",
+                PLAYLIST_DETAILS: "farm/status/playlist_details"
+            }
+        };
+
+        // Relay channel map — aligned with server config.py
+        // Ch 16 = Own Solar VFD START (DI2), Ch 17 = Sarkari VFD START (DI2)
+        // Ch 26 = Own Solar VFD STOP  (DI1), Ch 28 = Sarkari VFD STOP  (DI1)
+        const DATA = {
+            pumps: ["gate_bore", "talaab_bore", "pandubbi", "sarkari", "middle"],
+            valves: ["bore_valves", "talaab_valves", "pandubbi_valves", "farm_house_valves"],
+            irrigation: ["upper_hill_mango", "lower_hill_mango", "lemon"],
+            libraryCache: [], playlists: [],
+
+            RELAY_CHANNELS: {
+                pumping_valves:     { "bore_valves": 1, "talaab_valves": 2, "pandubbi_valves": 3, "farm_house_valves": 4 },
+                irrigation_valves:  { "upper_hill_mango": 5, "lower_hill_mango": 6, "lemon": 7 },
+                pumps_own_solar:    { "gate_bore": 11, "talaab_bore": 12, "pandubbi": 13, "sarkari": 14, "middle": 15 },
+                vfd_start:          { "own_solar": 16, "sarkari_solar": 17 },
+                pumps_sarkari_solar:{ "gate_bore": 21, "talaab_bore": 22, "pandubbi": 23, "sarkari": 24, "middle": 25 },
+                vfd_stop:           { "own_solar": 26, "sarkari_solar": 28 }
+            }
+        };
+
+        let channelToInputMap = {};
+        let reverseRelayMap   = {};
+
+        const App = {
+            attemptLogin: () => {
+                const userIn = document.getElementById('login-user').value.toLowerCase();
+                const passIn = document.getElementById('login-pass').value;
+                if (CONSTANTS.AUTH_MAP[userIn] && passIn === CONSTANTS.SIMPLE_PASS) {
+                    const creds = CONSTANTS.AUTH_MAP[userIn];
+                    sessionStorage.setItem('mqtt_user', atob(creds.u));
+                    sessionStorage.setItem('mqtt_pass', atob(creds.p));
+                    document.getElementById('login-overlay').style.display = 'none';
+                    document.getElementById('app-container').classList.remove('hidden-view');
+                    Diagnostics.buildMaps();
+                    Mqtt.connect(); ControlPanel.init(); Scheduler.init(); Diagnostics.init();
+                } else {
+                    document.getElementById('login-error').classList.remove('hidden');
+                }
+            },
+            switchView: (viewId) => {
+                document.querySelectorAll('[id^="view-"]').forEach(el => { el.classList.add('hidden-view'); el.classList.remove('active-view'); });
+                document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active', 'bg-blue-600', 'text-white'));
+                const target = document.getElementById(`view-${viewId}`);
+                target.classList.remove('hidden-view'); target.classList.add('active-view');
+                const btn = document.querySelector(`button[onclick="App.switchView('${viewId}')"]`);
+                if (btn) btn.classList.add('active');
+                if (viewId === 'music')     { Mqtt.send('get_playlists'); Mqtt.send('get_queue'); Mqtt.send('get_library'); }
+                if (viewId === 'scheduler') { Mqtt.send('get_schedule'); Mqtt.send('get_playlists'); }
+            },
+            toggleLogHeight: () => {
+                const panel   = document.getElementById('log-panel');
+                const chevron = document.getElementById('log-chevron');
+                if (panel.style.height === '36px') { panel.style.height = '160px'; chevron.style.transform = 'rotate(0deg)'; }
+                else { panel.style.height = '36px'; chevron.style.transform = 'rotate(180deg)'; }
+            },
+            showToast: (msg) => {
+                const t = document.getElementById('toast');
+                t.innerText = msg; t.classList.remove('opacity-0');
+                setTimeout(() => t.classList.add('opacity-0'), 2500);
+            }
+        };
+
+        const Logger = {
+            log:   (msg) => { const el = document.getElementById('universal-log'); const ts = new Date().toLocaleTimeString(); el.textContent = `[${ts}] ${msg}\n` + el.textContent; },
+            clear: ()    => { document.getElementById('universal-log').textContent = ""; }
+        };
+
+        const Mqtt = {
+            client: null, isConnected: false,
+            connect: () => {
+                const user     = sessionStorage.getItem('mqtt_user');
+                const pass     = sessionStorage.getItem('mqtt_pass');
+                const clientId = "unified_app_" + Math.random().toString(16).substr(2, 8);
+                Mqtt.client = mqtt.connect(CONSTANTS.BROKER, { username: user, password: pass, clientId });
+                Mqtt.client.on('connect', () => {
+                    Mqtt.isConnected = true; Mqtt.updateStatusUI(true);
+                    Object.values(CONSTANTS.TOPICS).forEach(t => Mqtt.client.subscribe(t));
+                    Mqtt.send('get_status'); Logger.log("System Connected");
+                });
+                Mqtt.client.on('message', (topic, payload) => {
+                    try {
+                        const msgStr = payload.toString();
+                        if (topic === CONSTANTS.TOPICS.LOGS) { Logger.log("LOG: " + msgStr); return; }
+                        const data = JSON.parse(msgStr);
+                        if (topic === CONSTANTS.TOPICS.STATUS)          { ControlPanel.updateUI(data); Diagnostics.updateUI(data); MusicPlayer.updateUI(data); Logger.log("Status Updated"); }
+                        else if (topic === CONSTANTS.TOPICS.PLAYLISTS)  { DATA.playlists = data; MusicPlayer.renderPlaylists(data); }
+                        else if (topic === CONSTANTS.TOPICS.SCHEDULE)   { Scheduler.renderTable(data); }
+                        else if (topic === CONSTANTS.TOPICS.LIBRARY)    { DATA.libraryCache = data; MusicPlayer.searchLibrary(); }
+                        else if (topic === CONSTANTS.TOPICS.QUEUE)      { MusicPlayer.renderQueue(data); }
+                        else if (topic === CONSTANTS.TOPICS.PLAYLIST_DETAILS) { MusicPlayer.openEditModal(data); }
+                    } catch (e) { console.error("Parse Error", e); }
+                });
+                Mqtt.client.on('offline', () => { Mqtt.updateStatusUI(false); Logger.log("Connection Lost"); });
+            },
+            send: (action, data = {}) => {
+                if (!Mqtt.isConnected) return;
+                const payload = JSON.stringify({ type: "mqtt_command", data: { action, ...data } });
+                Mqtt.client.publish(CONSTANTS.TOPICS.CMD, payload);
+                if (action !== 'get_status') { Logger.log(`SENT CMD: ${action} ${JSON.stringify(data)}`); App.showToast('Command Sent'); }
+            },
+            updateStatusUI: (online) => {
+                const dot = document.getElementById('global-status-dot');
+                const txt = document.getElementById('global-status-text');
+                if (online) { dot.classList.replace('bg-red-500', 'bg-green-500'); dot.classList.add('status-dot-pulse'); txt.innerText = "Connected"; txt.classList.add('text-green-400'); }
+                else        { dot.classList.replace('bg-green-500', 'bg-red-500'); dot.classList.remove('status-dot-pulse'); txt.innerText = "Offline"; txt.classList.remove('text-green-400'); }
+            }
+        };
+
+        const ControlPanel = {
+            init: () => { lucide.createIcons(); },
+            updateValves:     () => { const s = {}; document.querySelectorAll('.cp-valve-check').forEach(cb => s[cb.dataset.name] = cb.checked); Mqtt.send('set_pumping_valves', {valves: s}); },
+            updateIrrigation: () => { const s = {}; document.querySelectorAll('.cp-irrig-check').forEach(cb => s[cb.dataset.name] = cb.checked); Mqtt.send('set_irrigation', {areas: s}); },
+            updateUI: (data) => {
+                // Running pumps list
+                const pumpEl = document.getElementById('cp-running-pumps');
+                if (data.running_pumps && data.running_pumps !== "None" && data.running_pumps.length > 0) {
+                    pumpEl.innerHTML = data.running_pumps.map(p =>
+                        `<div class="flex justify-between items-center bg-green-900/30 p-1 rounded text-xs mb-1 border border-green-800">
+                            <span>${p}</span>
+                            <button onclick="Mqtt.send('stop_pump', {pump: '${p.split(' ')[0]}'})" class="text-red-400 font-bold px-2">STOP</button>
+                         </div>`
+                    ).join('');
+                } else { pumpEl.innerText = "None"; }
+
+                // Float valves
+                if (data.float_valves) {
+                    const hill  = document.getElementById('cp-tank-hill');
+                    const house = document.getElementById('cp-tank-house');
+                    hill.innerText  = data.float_valves.hill_tank_full  ? "FULL" : "FILLING";
+                    hill.className  = data.float_valves.hill_tank_full  ? "font-bold text-blue-400" : "font-bold text-gray-500";
+                    house.innerText = data.float_valves.house_tank_full ? "FULL" : "FILLING";
+                    house.className = data.float_valves.house_tank_full ? "font-bold text-blue-400" : "font-bold text-gray-500";
+                }
+
+                // VFD status indicators
+                if (data.vfd_status) {
+                    ['own_solar', 'sarkari_solar'].forEach(src => {
+                        const el = document.getElementById(`cp-vfd-${src}`);
+                        if (!el) return;
+                        const vfd  = data.vfd_status[src] || {};
+                        const busy = vfd.busy;
+                        const running = vfd.status === 'running';
+                        el.innerText  = busy ? "RAMP-UP…" : (running ? "RUNNING" : "STOPPED");
+                        el.className  = busy ? "font-bold text-xs text-yellow-400"
+                                       : running ? "font-bold text-xs text-green-400"
+                                                 : "font-bold text-xs text-gray-500";
+                    });
+                }
+
+                // Valve toggles
+                if (data.active_pumping_valves)  { document.querySelectorAll('.cp-valve-check').forEach(cb  => { cb.checked  = data.active_pumping_valves.includes(cb.dataset.name.replace(/_/g, ' ')); }); }
+                if (data.active_irrigation_areas) { document.querySelectorAll('.cp-irrig-check').forEach(cb => { cb.checked = data.active_irrigation_areas.includes(cb.dataset.name.replace(/_/g, ' ')); }); }
+
+                // LED bulbs for pumps and valves
+                if (data.raw_device_states) {
+                    const relays = data.raw_device_states.relays || {};
+                    const inputs = data.raw_device_states.inputs || {};
+
+                    DATA.pumps.forEach(p => {
+                        ['own_solar', 'sarkari_solar'].forEach(src => {
+                            const inputKey = `FEEDBACK_${src}_${p}`;
+                            const relayCh  = DATA.RELAY_CHANNELS[`pumps_${src}`]?.[p];
+                            const inputVal = inputs[inputKey];
+                            const isActive = (inputVal !== undefined) ? !!inputVal : !!(relayCh && relays[relayCh]);
+                            const bulb = document.getElementById(`bulb-pump-${src}-${p}`);
+                            if (bulb) bulb.classList.toggle('on', isActive);
+                        });
+                    });
+
+                    [...DATA.valves, ...DATA.irrigation].forEach(v => {
+                        const inputKey = `VALVE_FEEDBACK_${v}`;
+                        const relayCh  = DATA.RELAY_CHANNELS.pumping_valves[v] || DATA.RELAY_CHANNELS.irrigation_valves[v];
+                        const inputVal = inputs[inputKey];
+                        const isActive = (inputVal !== undefined) ? !!inputVal : !!(relayCh && relays[relayCh]);
+                        const bulb = document.getElementById(`bulb-valve-${v}`);
+                        if (bulb) bulb.classList.toggle('on', isActive);
+                    });
+                }
+            }
+        };
+
+        const Diagnostics = {
+            buildMaps: () => {
+                const rc = DATA.RELAY_CHANNELS;
+                // Pumping valves
+                Object.entries(rc.pumping_valves).forEach(([name, ch]) => {
+                    reverseRelayMap[ch]  = name;
+                    channelToInputMap[ch] = `VALVE_FEEDBACK_${name}`;
+                });
+                // Irrigation valves
+                Object.entries(rc.irrigation_valves).forEach(([name, ch]) => {
+                    reverseRelayMap[ch]  = name;
+                    channelToInputMap[ch] = `VALVE_FEEDBACK_${name}`;
+                });
+                // Own solar contactors
+                Object.entries(rc.pumps_own_solar).forEach(([name, ch]) => {
+                    reverseRelayMap[ch]  = `OWN: ${name}`;
+                    channelToInputMap[ch] = `FEEDBACK_own_solar_${name}`;
+                });
+                // VFD start channels
+                Object.entries(rc.vfd_start).forEach(([src, ch]) => {
+                    reverseRelayMap[ch] = `VFD START: ${src.replace('_', ' ')}`;
+                });
+                // Sarkari solar contactors
+                Object.entries(rc.pumps_sarkari_solar).forEach(([name, ch]) => {
+                    reverseRelayMap[ch]  = `SARKARI: ${name}`;
+                    channelToInputMap[ch] = `FEEDBACK_sarkari_solar_${name}`;
+                });
+                // VFD stop channels
+                Object.entries(rc.vfd_stop).forEach(([src, ch]) => {
+                    reverseRelayMap[ch] = `VFD STOP: ${src.replace('_', ' ')}`;
+                });
+            },
+            init: () => {
+                const createRelayControl = (name, channel) => {
+                    const fmt       = name.replace(/_/g, ' ');
+                    const nameClass = name === 'Unassigned' ? 'text-gray-500 italic' : 'font-medium text-sm text-gray-300';
+                    return `<div class="flex items-center justify-between bg-gray-800 p-2 rounded-lg border border-gray-700">
+                        <div class="flex items-center space-x-2 overflow-hidden">
+                            <div class="status-light w-3 h-3 rounded-full bg-gray-600 flex-shrink-0" data-channel="${channel}"></div>
+                            <span class="font-mono text-xs text-gray-500 w-6 text-center flex-shrink-0">${channel}</span>
+                            <span class="${nameClass} truncate" title="${fmt}">${fmt}</span>
+                        </div>
+                        <button onclick='Mqtt.send("press_relay", {channel: ${channel}})' class="bg-blue-600 hover:bg-blue-700 px-3 py-1 text-xs rounded text-white">PRESS</button>
+                    </div>`;
+                };
+                const list1 = document.getElementById('diag-relays-1');
+                const list2 = document.getElementById('diag-relays-2');
+                if (list1 && list2) {
+                    list1.innerHTML = ""; list2.innerHTML = "";
+                    for (let i = 1; i <= 30; i++) {
+                        const name = reverseRelayMap[i] || 'Unassigned';
+                        const html = createRelayControl(name, i);
+                        if (i <= 15) list1.innerHTML += html; else list2.innerHTML += html;
+                    }
+                }
+            },
+            updateUI: (data) => {
+                if (!data.raw_device_states) return;
+                const relays = data.raw_device_states.relays || {};
+                const inputs = data.raw_device_states.inputs || {};
+                for (let i = 1; i <= 30; i++) {
+                    const light = document.querySelector(`.status-light[data-channel="${i}"]`);
+                    if (!light) continue;
+                    const feedbackKey = channelToInputMap[i];
+                    const isTrulyOn   = feedbackKey && inputs[feedbackKey] !== undefined ? inputs[feedbackKey] : relays[String(i)];
+                    light.classList.toggle('bg-green-500', !!isTrulyOn);
+                    light.classList.toggle('shadow-lg', !!isTrulyOn);
+                    light.classList.toggle('shadow-green-500/50', !!isTrulyOn);
+                    light.classList.toggle('bg-gray-600', !isTrulyOn);
+                }
+            }
+        };
+
+        const MusicPlayer = {
+            randomMode: false,
+            updateUI: (data) => {
+                if (!data.music_state) return;
+                const m = data.music_state;
+                document.getElementById('music-title').innerText  = m.current_song || "Nothing Playing";
+                document.getElementById('music-status').innerText = m.status === 'playing' ? "Playing Now" : "Stopped";
+                MusicPlayer.randomMode = m.random_mode;
+                const btn = document.getElementById('btn-shuffle');
+                if (m.random_mode) { btn.classList.add('text-green-400'); btn.innerText = "🔀 ON"; }
+                else               { btn.classList.remove('text-green-400'); btn.innerText = "🔀 OFF"; }
+            },
+            renderPlaylists: (list) => {
+                const sel    = document.getElementById('music-playlist-select');
+                const target = document.getElementById('target-playlist-select');
+                sel.innerHTML = '<option value="" disabled selected>Select Playlist...</option>';
+                if (target) target.innerHTML = '<option value="">Add to...</option>';
+                list.forEach(pl => {
+                    const opt = document.createElement('option');
+                    opt.value = pl.id; opt.innerText = pl.name.replace(/_/g, ' ');
+                    sel.appendChild(opt);
+                    if (target) target.appendChild(opt.cloneNode(true));
+                });
+            },
+            renderLibrary: (items) => {
+                const tbody = document.getElementById('music-library-list');
+                tbody.innerHTML = "";
+                items.forEach((song, idx) => {
+                    tbody.innerHTML += `<tr>
+                        <td class="text-gray-500 text-center w-8">${idx+1}</td>
+                        <td class="pl-4"><div class="font-bold text-sm text-gray-200 truncate w-48">${song.description}</div><div class="text-[10px] text-gray-500 truncate w-48">${song.filename}</div></td>
+                        <td class="text-right"><div class="flex justify-end gap-4">
+                            <button onclick="Mqtt.send('play_song_now', {song_id: ${song.id}})" class="bg-blue-900/50 hover:bg-blue-700 text-blue-400 hover:text-white text-lg px-2 rounded">▶</button>
+                            <button onclick="Mqtt.send('add_to_queue', {song_id: ${song.id}})" class="bg-green-900/50 hover:bg-green-700 text-green-400 hover:text-white text-lg px-2 rounded">➕</button>
+                            <button onclick="MusicPlayer.addToPlaylist(${song.id})" class="bg-yellow-900/50 hover:bg-yellow-700 text-yellow-400 hover:text-white text-lg px-2 rounded">💾</button>
+                        </div></td></tr>`;
+                });
+            },
+            renderQueue: (items) => {
+                const tbody = document.getElementById('music-queue-list');
+                tbody.innerHTML = "";
+                if (!items || items.length === 0) { tbody.innerHTML = '<tr><td colspan="3" class="text-gray-500 text-center text-xs">Empty</td></tr>'; return; }
+                items.forEach((song, idx) => {
+                    tbody.innerHTML += `<tr class="border-b border-gray-700">
+                        <td class="text-gray-400 w-4 text-xs">${idx+1}</td>
+                        <td class="text-xs truncate max-w-[150px]">${song.description}</td>
+                        <td class="text-right p-1"><button onclick="Mqtt.send('remove_from_queue', {queue_id: ${song.queue_id}})" class="bg-red-900/50 hover:bg-red-700 text-red-400 hover:text-white font-bold px-2 py-1 rounded">🗑</button></td>
+                    </tr>`;
+                });
+            },
+            editPlaylist: () => { const id = document.getElementById('music-playlist-select').value; if (!id) return App.showToast("Select Playlist First!"); Mqtt.send('get_playlist_details', {id: parseInt(id)}); },
+            openEditModal: (details) => {
+                document.getElementById('modal-title').innerText = "Edit: " + details.name.replace(/_/g, ' ');
+                const tbody = document.getElementById('modal-list');
+                tbody.innerHTML = details.songs.length === 0
+                    ? '<tr><td class="text-gray-500 text-center p-4">Playlist is empty</td></tr>'
+                    : details.songs.map((song, idx) => `<tr class="border-b border-gray-700">
+                        <td class="p-2 text-gray-400 text-xs">${idx+1}</td>
+                        <td class="p-2 text-sm text-white">${song.description}</td>
+                        <td class="p-2 text-right"><button onclick="Mqtt.send('remove_from_playlist', {playlist_id: ${details.id}, song_id: ${song.id}})" class="text-red-400 hover:text-red-200 text-lg">🗑</button></td>
+                    </tr>`).join('');
+                document.getElementById('modal-overlay').style.display = 'flex';
+            },
+            playSelected:  () => { const id = document.getElementById('music-playlist-select').value; if (id) Mqtt.send('play_playlist', {id: parseInt(id)}); },
+            addToPlaylist: (songId) => { const plId = document.getElementById('target-playlist-select')?.value; if (!plId) return App.showToast("Select Playlist!"); Mqtt.send('add_to_playlist', {playlist_id: parseInt(plId), song_id: songId}); },
+            createPlaylist: () => { const name = document.getElementById('new-playlist-name').value; if (name) { Mqtt.send('create_playlist', {name}); document.getElementById('new-playlist-name').value = ""; } },
+            addFile: () => {
+                const fn   = document.getElementById('new-file-path').value;
+                const desc = document.getElementById('new-file-desc').value;
+                if (fn && desc) { Mqtt.send('add_library_item', {filename: fn, description: desc}); document.getElementById('new-file-path').value = ""; document.getElementById('new-file-desc').value = ""; }
+                else alert("Please enter both filename and description");
+            },
+            searchLibrary: () => {
+                const term     = document.getElementById('music-search').value.toLowerCase();
+                const filtered = DATA.libraryCache.filter(s => s.description?.toLowerCase().includes(term) || s.filename?.toLowerCase().includes(term));
+                MusicPlayer.renderLibrary(filtered);
+            },
+            toggleShuffle: () => { Mqtt.send('set_random_mode', {enabled: !MusicPlayer.randomMode}); },
+            playAll: (shuffle) => {
+                if (DATA.libraryCache.length === 0) return App.showToast("Library Empty");
+                if (!confirm(`Queue ${DATA.libraryCache.length} songs?`)) return;
+                let list = [...DATA.libraryCache];
+                if (shuffle) list.sort(() => Math.random() - 0.5);
+                list.forEach((s, i) => setTimeout(() => Mqtt.send('add_to_queue', {song_id: s.id}), i * 50));
+                App.showToast("Queueing...");
+            }
+        };
+
+        const Scheduler = {
+            init: () => { Scheduler.updateDeviceList(); },
+            updateDeviceList: () => {
+                const type    = document.getElementById('sched-type').value;
+                const sel     = document.getElementById('sched-name');
+                const srcWrap = document.getElementById('sched-source-wrapper');
+                sel.innerHTML = ""; let list = [];
+                if (type === 'pump')  { list = DATA.pumps; srcWrap.style.display = 'block'; }
+                else if (type === 'valve') { list = DATA.valves; srcWrap.style.display = 'none'; }
+                else if (type === 'music') { list = DATA.playlists.map(p => p.name); srcWrap.style.display = 'none'; }
+                list.forEach(item => { const opt = document.createElement('option'); opt.value = item; opt.innerText = item.replace(/_/g, ' '); sel.appendChild(opt); });
+            },
+            saveTask: () => {
+                const dt = document.getElementById('sched-time').value;
+                if (!dt) return alert("Select Time");
+                const d   = new Date(dt);
+                const fmt = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+                Mqtt.send('schedule_task', {
+                    device_type: document.getElementById('sched-type').value,
+                    device_name: document.getElementById('sched-name').value,
+                    source:      document.getElementById('sched-source').value,
+                    start_time:  fmt,
+                    duration:    document.getElementById('sched-duration').value
+                });
+                setTimeout(() => Mqtt.send('get_schedule'), 1000);
+            },
+            renderTable: (tasks) => {
+                const tbody = document.getElementById('sched-list');
+                tbody.innerHTML = "";
+                if (!tasks || tasks.length === 0) { tbody.innerHTML = '<tr><td colspan="4" class="p-2 text-center text-gray-500 text-xs">No active tasks</td></tr>'; return; }
+                tasks.forEach(t => {
+                    tbody.innerHTML += `<tr class="border-b border-gray-700 hover:bg-gray-700/50">
+                        <td class="p-2"><div class="font-bold text-white capitalize text-xs">${t.device_name.replace(/_/g,' ')}</div><div class="text-[10px] text-gray-500 uppercase">${t.device_type}</div></td>
+                        <td class="p-2 text-xs">${t.start_time.split(' ')[1]}</td>
+                        <td class="p-2"><span class="${t.status === 'RUNNING' ? 'text-green-400 font-bold' : 'text-blue-400'} text-[10px] px-1 rounded bg-gray-800">${t.status}</span></td>
+                        <td class="p-2 text-right"><button onclick="Mqtt.send('delete_schedule', {task_id: ${t.id}})" class="text-red-400 hover:text-white bg-red-900/30 px-2 py-0.5 rounded text-[10px]">X</button></td>
+                    </tr>`;
+                });
+            }
+        };
+    </script>
+</body>
+</html>
