@@ -87,10 +87,11 @@
             </div>
             <button onclick="location.reload()" class="bg-red-900/20 hover:bg-red-900 p-1.5 rounded text-red-400"><i data-lucide="log-out" class="w-4 h-4"></i></button>
         </div>
-        <div class="p-1 grid grid-cols-5 gap-1 md:flex md:flex-col md:space-y-1 md:p-3 bg-gray-900">
+        <div class="p-1 grid grid-cols-6 gap-1 md:flex md:flex-col md:space-y-1 md:p-3 bg-gray-900">
             <button onclick="App.switchView('control')"   class="nav-btn active flex flex-col items-center justify-center py-2 rounded-lg text-gray-400 hover:bg-gray-800"><i data-lucide="layout-dashboard" class="w-4 h-4 mb-0.5"></i><span class="text-[10px] font-medium leading-none">Control</span></button>
             <button onclick="App.switchView('music')"     class="nav-btn flex flex-col items-center justify-center py-2 rounded-lg text-gray-400 hover:bg-gray-800"><i data-lucide="music"            class="w-4 h-4 mb-0.5"></i><span class="text-[10px] font-medium leading-none">Music</span></button>
             <button onclick="App.switchView('scheduler')" class="nav-btn flex flex-col items-center justify-center py-2 rounded-lg text-gray-400 hover:bg-gray-800"><i data-lucide="calendar"         class="w-4 h-4 mb-0.5"></i><span class="text-[10px] font-medium leading-none">Sched</span></button>
+            <button onclick="App.switchView('routine')"   class="nav-btn flex flex-col items-center justify-center py-2 rounded-lg text-gray-400 hover:bg-gray-800"><i data-lucide="sun"              class="w-4 h-4 mb-0.5"></i><span class="text-[10px] font-medium leading-none">Routine</span></button>
             <button onclick="App.switchView('diag')"      class="nav-btn flex flex-col items-center justify-center py-2 rounded-lg text-gray-400 hover:bg-gray-800"><i data-lucide="wrench"           class="w-4 h-4 mb-0.5"></i><span class="text-[10px] font-medium leading-none">Diag</span></button>
             <button onclick="App.switchView('deploy')"    class="nav-btn flex flex-col items-center justify-center py-2 rounded-lg text-gray-400 hover:bg-gray-800"><i data-lucide="upload-cloud"     class="w-4 h-4 mb-0.5"></i><span class="text-[10px] font-medium leading-none">Deploy</span></button>
         </div>
@@ -255,7 +256,7 @@
                 <div class="bg-gray-900 p-3 rounded-xl border border-gray-700">
                     <h2 class="text-sm font-bold text-white mb-2">New Task</h2>
                     <div class="grid grid-cols-2 gap-2 mb-2">
-                        <div><label class="text-[10px] text-gray-400">Type</label><select id="sched-type" onchange="Scheduler.updateDeviceList()" class="w-full bg-gray-800 p-1.5 rounded border border-gray-600 text-xs"><option value="pump">Pump</option><option value="valve">Valve</option><option value="music">Music</option></select></div>
+                        <div><label class="text-[10px] text-gray-400">Type</label><select id="sched-type" onchange="Scheduler.updateDeviceList()" class="w-full bg-gray-800 p-1.5 rounded border border-gray-600 text-xs"><option value="pump">Pump</option><option value="valve">Valve</option><option value="music">Music (Playlist)</option><option value="song">Song</option><option value="vfd">VFD</option></select></div>
                         <div><label class="text-[10px] text-gray-400">Device</label><select id="sched-name" class="w-full bg-gray-800 p-1.5 rounded border border-gray-600 text-xs"></select></div>
                         <div id="sched-source-wrapper"><label class="text-[10px] text-gray-400">Source</label><select id="sched-source" class="w-full bg-gray-800 p-1.5 rounded border border-gray-600 text-xs"><option value="own_solar">Own Solar</option><option value="sarkari_solar">Sarkari Solar</option></select></div>
                         <div><label class="text-[10px] text-gray-400">Start</label><input type="datetime-local" id="sched-time" class="w-full bg-gray-800 p-1.5 rounded border border-gray-600 text-xs"></div>
@@ -266,6 +267,89 @@
                 <div class="bg-gray-900 p-3 rounded-xl border border-gray-700">
                     <h3 class="font-bold text-xs mb-2">Active Tasks <button onclick="Mqtt.send('get_schedule')" class="text-blue-400 text-xs ml-2">↻</button></h3>
                     <table class="w-full text-left text-[10px] text-gray-400"><thead class="bg-gray-800"><tr><th class="p-2">Device</th><th class="p-2">Start</th><th class="p-2">Status</th><th class="p-2 text-right">X</th></tr></thead><tbody id="sched-list"></tbody></table>
+                </div>
+            </div>
+
+            <!-- ================================================================ -->
+            <!-- ROUTINE VIEW                                                      -->
+            <!-- ================================================================ -->
+            <div id="view-routine" class="hidden-view space-y-3 max-w-3xl mx-auto">
+
+                <!-- Add routine entry form -->
+                <div class="bg-gray-900 p-3 rounded-xl border border-gray-700">
+                    <h2 class="text-sm font-bold text-white mb-1">Daily Routine</h2>
+                    <p class="text-[10px] text-gray-500 mb-3">These activities are auto-scheduled every day at midnight. You can delete or modify individual instances from the Sched tab.</p>
+
+                    <div class="grid grid-cols-2 gap-2 mb-2">
+                        <!-- Type -->
+                        <div>
+                            <label class="text-[10px] text-gray-400">Type</label>
+                            <select id="rt-type" onchange="Routine.updateDeviceList()" class="w-full bg-gray-800 p-1.5 rounded border border-gray-600 text-xs">
+                                <option value="song">Song</option>
+                                <option value="vfd">VFD</option>
+                                <option value="pump">Pump</option>
+                                <option value="valve">Valve</option>
+                                <option value="music">Music (Playlist)</option>
+                            </select>
+                        </div>
+                        <!-- Device -->
+                        <div>
+                            <label class="text-[10px] text-gray-400">Device / Name</label>
+                            <select id="rt-name" class="w-full bg-gray-800 p-1.5 rounded border border-gray-600 text-xs"></select>
+                        </div>
+                        <!-- Source (pumps/vfd only) -->
+                        <div id="rt-source-wrapper">
+                            <label class="text-[10px] text-gray-400">Source</label>
+                            <select id="rt-source" class="w-full bg-gray-800 p-1.5 rounded border border-gray-600 text-xs">
+                                <option value="own_solar">Own Solar</option>
+                                <option value="sarkari_solar">Sarkari Solar</option>
+                            </select>
+                        </div>
+                        <!-- Time mode -->
+                        <div>
+                            <label class="text-[10px] text-gray-400">Time Anchor</label>
+                            <select id="rt-timemode" onchange="Routine.toggleTimeFields()" class="w-full bg-gray-800 p-1.5 rounded border border-gray-600 text-xs">
+                                <option value="fixed">Fixed Time</option>
+                                <option value="sunrise_offset">After Sunrise</option>
+                                <option value="sunset_offset">Before Sunset</option>
+                            </select>
+                        </div>
+                        <!-- Fixed time (shown when mode=fixed) -->
+                        <div id="rt-fixed-wrapper">
+                            <label class="text-[10px] text-gray-400">Time (HH:MM)</label>
+                            <input type="time" id="rt-fixed-time" value="06:00" class="w-full bg-gray-800 p-1.5 rounded border border-gray-600 text-xs">
+                        </div>
+                        <!-- Offset (shown when mode=sunrise/sunset) -->
+                        <div id="rt-offset-wrapper" style="display:none">
+                            <label class="text-[10px] text-gray-400" id="rt-offset-label">Minutes after sunrise</label>
+                            <input type="number" id="rt-offset" value="20" class="w-full bg-gray-800 p-1.5 rounded border border-gray-600 text-xs">
+                        </div>
+                        <!-- Duration -->
+                        <div class="col-span-2">
+                            <label class="text-[10px] text-gray-400">Duration (minutes)</label>
+                            <input type="number" id="rt-duration" value="60" class="w-full bg-gray-800 p-1.5 rounded border border-gray-600 text-xs">
+                        </div>
+                    </div>
+                    <button onclick="Routine.save()" class="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-1.5 rounded text-xs">Add to Routine</button>
+                </div>
+
+                <!-- Today's sunrise/sunset preview -->
+                <div class="bg-gray-900 p-3 rounded-xl border border-gray-700">
+                    <div class="flex justify-between items-center">
+                        <div class="text-[10px] text-gray-400">🌅 Today: <span id="rt-sunrise-display" class="text-yellow-400 font-bold">--:--</span> sunrise &nbsp;|&nbsp; <span id="rt-sunset-display" class="text-orange-400 font-bold">--:--</span> sunset</div>
+                        <button onclick="Routine.generateNow()" class="bg-yellow-700 hover:bg-yellow-600 text-white text-[10px] px-2 py-1 rounded">⚡ Generate Today</button>
+                    </div>
+                </div>
+
+                <!-- Routine entries list -->
+                <div class="bg-gray-900 p-3 rounded-xl border border-gray-700">
+                    <h3 class="font-bold text-xs mb-2 text-white">Configured Routine <button onclick="Mqtt.send('get_routine')" class="text-blue-400 text-xs ml-2">↻</button></h3>
+                    <table class="w-full text-left text-[10px] text-gray-400">
+                        <thead class="bg-gray-800">
+                            <tr><th class="p-2">Activity</th><th class="p-2">Time</th><th class="p-2">Dur</th><th class="p-2 text-right">On/Del</th></tr>
+                        </thead>
+                        <tbody id="routine-list"></tbody>
+                    </table>
                 </div>
             </div>
 
@@ -395,7 +479,8 @@ const CONSTANTS = {
         PLAYLISTS:"farm/status/playlists", SCHEDULE:"farm/status/schedule",
         LIBRARY:"farm/status/library", QUEUE:"farm/status/queue",
         PLAYLIST_DETAILS:"farm/status/playlist_details",
-        DEPLOY_RESULT:"farm/deploy/result"
+        DEPLOY_RESULT:"farm/deploy/result",
+        ROUTINE:"farm/status/routine"
     }
 };
 
@@ -429,7 +514,7 @@ const App = {
             sessionStorage.setItem('mqtt_pass', atob(c.p));
             document.getElementById('login-overlay').style.display = 'none';
             document.getElementById('app-container').classList.remove('hidden-view');
-            Diagnostics.buildMaps(); Mqtt.connect(); ControlPanel.init(); Scheduler.init(); Diagnostics.init();
+            Diagnostics.buildMaps(); Mqtt.connect(); ControlPanel.init(); Scheduler.init(); Diagnostics.init(); Routine.updateDeviceList();
         } else { document.getElementById('login-error').classList.remove('hidden'); }
     },
     switchView: (id) => {
@@ -441,6 +526,7 @@ const App = {
         if (b) b.classList.add('active');
         if (id==='music')     { Mqtt.send('get_playlists'); Mqtt.send('get_queue'); Mqtt.send('get_library'); }
         if (id==='scheduler') { Mqtt.send('get_schedule'); Mqtt.send('get_playlists'); }
+        if (id==='routine')   { Mqtt.send('get_routine');  Mqtt.send('get_playlists'); Mqtt.send('get_library'); Routine.previewSunriseSunset(); }
     },
     toggleLogHeight: () => {
         const p = document.getElementById('log-panel');
@@ -499,6 +585,7 @@ const Mqtt = {
                 if      (topic===CONSTANTS.TOPICS.STATUS)          { ControlPanel.updateUI(d); Diagnostics.updateUI(d); MusicPlayer.updateUI(d); Logger.log("Status Updated"); }
                 else if (topic===CONSTANTS.TOPICS.PLAYLISTS)       { DATA.playlists=d; MusicPlayer.renderPlaylists(d); }
                 else if (topic===CONSTANTS.TOPICS.SCHEDULE)        { Scheduler.renderTable(d); }
+                else if (topic===CONSTANTS.TOPICS.ROUTINE)         { Routine.renderTable(d); }
                 else if (topic===CONSTANTS.TOPICS.LIBRARY)         { DATA.libraryCache=d; MusicPlayer.searchLibrary(); }
                 else if (topic===CONSTANTS.TOPICS.QUEUE)           { MusicPlayer.renderQueue(d); }
                 else if (topic===CONSTANTS.TOPICS.PLAYLIST_DETAILS){ MusicPlayer.openEditModal(d); }
@@ -655,8 +742,10 @@ const Scheduler = {
         const type=document.getElementById('sched-type').value, sel=document.getElementById('sched-name'), sw=document.getElementById('sched-source-wrapper');
         sel.innerHTML=''; let list=[];
         if(type==='pump'){list=DATA.pumps;sw.style.display='block';}
-        else if(type==='valve'){list=DATA.valves;sw.style.display='none';}
+        else if(type==='valve'){list=[...DATA.valves,...DATA.irrigation];sw.style.display='none';}
         else if(type==='music'){list=DATA.playlists.map(p=>p.name);sw.style.display='none';}
+        else if(type==='song'){list=DATA.libraryCache.map(s=>s.description);sw.style.display='none';}
+        else if(type==='vfd'){list=['own_solar','sarkari_solar'];sw.style.display='none';}
         list.forEach(item=>{const o=document.createElement('option');o.value=item;o.innerText=item.replace(/_/g,' ');sel.appendChild(o);});
     },
     saveTask: () => {
@@ -670,6 +759,102 @@ const Scheduler = {
         const b=document.getElementById('sched-list'); b.innerHTML='';
         if(!tasks||!tasks.length){b.innerHTML='<tr><td colspan="4" class="p-2 text-center text-gray-500 text-xs">No active tasks</td></tr>';return;}
         tasks.forEach(t=>{b.innerHTML+=`<tr class="border-b border-gray-700 hover:bg-gray-700/50"><td class="p-2"><div class="font-bold text-white capitalize text-xs">${t.device_name.replace(/_/g,' ')}</div><div class="text-[10px] text-gray-500 uppercase">${t.device_type}</div></td><td class="p-2 text-xs">${t.start_time.split(' ')[1]}</td><td class="p-2"><span class="${t.status==='RUNNING'?'text-green-400 font-bold':'text-blue-400'} text-[10px] px-1 rounded bg-gray-800">${t.status}</span></td><td class="p-2 text-right"><button onclick="Mqtt.send('delete_schedule',{task_id:${t.id}})" class="text-red-400 hover:text-white bg-red-900/30 px-2 py-0.5 rounded text-[10px]">X</button></td></tr>`;});
+    }
+};
+
+// =============================================================================
+// ROUTINE
+// =============================================================================
+const Routine = {
+    updateDeviceList: () => {
+        const type=document.getElementById('rt-type').value;
+        const sel=document.getElementById('rt-name');
+        const sw=document.getElementById('rt-source-wrapper');
+        sel.innerHTML=''; let list=[];
+        if(type==='pump')  { list=DATA.pumps;                            sw.style.display='block'; }
+        if(type==='vfd')   { list=['own_solar','sarkari_solar'];          sw.style.display='none'; }
+        if(type==='valve') { list=[...DATA.valves,...DATA.irrigation];    sw.style.display='none'; }
+        if(type==='music') { list=DATA.playlists.map(p=>p.name);         sw.style.display='none'; }
+        if(type==='song')  { list=DATA.libraryCache.map(s=>s.description);sw.style.display='none'; }
+        list.forEach(item=>{const o=document.createElement('option');o.value=item;o.innerText=item.replace(/_/g,' ');sel.appendChild(o);});
+    },
+    toggleTimeFields: () => {
+        const mode=document.getElementById('rt-timemode').value;
+        const fw=document.getElementById('rt-fixed-wrapper'), ow=document.getElementById('rt-offset-wrapper');
+        const lbl=document.getElementById('rt-offset-label');
+        if(mode==='fixed'){fw.style.display='block';ow.style.display='none';}
+        else{
+            fw.style.display='none'; ow.style.display='block';
+            lbl.innerText = mode==='sunrise_offset' ? 'Minutes after sunrise' : 'Minutes before sunset';
+            // For sunset, default offset should be negative (before sunset)
+            if(mode==='sunset_offset' && document.getElementById('rt-offset').value > 0)
+                document.getElementById('rt-offset').value = -20;
+            if(mode==='sunrise_offset' && document.getElementById('rt-offset').value < 0)
+                document.getElementById('rt-offset').value = 20;
+        }
+    },
+    save: () => {
+        const type   = document.getElementById('rt-type').value;
+        const name   = document.getElementById('rt-name').value;
+        const mode   = document.getElementById('rt-timemode').value;
+        const dur    = document.getElementById('rt-duration').value;
+        const source = document.getElementById('rt-source').value;
+        if(!name) return App.showToast('Select a device');
+        const payload = { device_type:type, device_name:name, time_mode:mode, duration:dur, source };
+        if(mode==='fixed'){
+            const t=document.getElementById('rt-fixed-time').value; if(!t) return App.showToast('Set time');
+            payload.fixed_time = t;
+        } else {
+            payload.offset_minutes = parseInt(document.getElementById('rt-offset').value)||0;
+        }
+        Mqtt.send('add_routine', payload);
+        setTimeout(()=>Mqtt.send('get_routine'),800);
+        App.showToast('Routine entry added');
+    },
+    renderTable: (entries) => {
+        const b=document.getElementById('routine-list'); b.innerHTML='';
+        if(!entries||!entries.length){b.innerHTML='<tr><td colspan="4" class="p-4 text-center text-gray-500 text-xs">No routine entries yet</td></tr>';return;}
+        entries.forEach(e=>{
+            const timeLabel = e.time_mode==='fixed'
+                ? e.fixed_time
+                : e.time_mode==='sunrise_offset'
+                    ? `☀️ +${e.offset_minutes}m`
+                    : `🌇 ${e.offset_minutes}m`;
+            const enabledBtn = e.enabled
+                ? `<button onclick="Mqtt.send('toggle_routine',{entry_id:${e.id},enabled:false})" class="text-green-400 text-lg" title="Enabled — click to disable">✓</button>`
+                : `<button onclick="Mqtt.send('toggle_routine',{entry_id:${e.id},enabled:true})"  class="text-gray-600 text-lg" title="Disabled — click to enable">✗</button>`;
+            b.innerHTML+=`<tr class="border-b border-gray-700 hover:bg-gray-700/50 ${e.enabled?'':'opacity-40'}">
+                <td class="p-2"><div class="font-bold text-white text-xs capitalize">${e.device_name.replace(/_/g,' ')}</div><div class="text-[10px] text-gray-500 uppercase">${e.device_type}${e.source?` · ${e.source.replace(/_/g,' ')}`:''}  </div></td>
+                <td class="p-2 text-xs text-yellow-300 font-mono">${timeLabel}</td>
+                <td class="p-2 text-[10px] text-gray-400">${e.duration_minutes}m</td>
+                <td class="p-2 text-right flex items-center justify-end gap-2">${enabledBtn}<button onclick="Mqtt.send('delete_routine',{entry_id:${e.id}})" class="text-red-400 bg-red-900/30 px-2 py-0.5 rounded text-[10px]">X</button></td>
+            </tr>`;
+        });
+    },
+    generateNow: () => {
+        if(!confirm('Re-generate today\'s schedule from the routine? This will add new tasks for today.')) return;
+        Mqtt.send('generate_routine_now');
+        setTimeout(()=>{ Mqtt.send('get_schedule'); App.switchView('scheduler'); }, 1500);
+    },
+    previewSunriseSunset: () => {
+        // Calculate sunrise/sunset client-side using SunCalc for the preview banner
+        // (actual scheduling uses astral on the Pi — this is just for display)
+        try {
+            const now = new Date();
+            // Very rough IST-based solar calc (just for display, Pi uses astral)
+            const lat = 27.18, lng = 78.01;
+            const dayOfYear = Math.floor((now - new Date(now.getFullYear(),0,0)) / 86400000);
+            const B = (360/365)*(dayOfYear - 81) * Math.PI/180;
+            const eqTime = 9.87*Math.sin(2*B) - 7.53*Math.cos(B) - 1.5*Math.sin(B);
+            const solarNoon = 720 - 4*lng - eqTime;
+            const declination = 23.45 * Math.sin(B) * Math.PI/180;
+            const hourAngle = Math.acos(-Math.tan(lat*Math.PI/180)*Math.tan(declination)) * 180/Math.PI;
+            const sunriseMin = solarNoon - 4*hourAngle + 330; // +330 = IST offset
+            const sunsetMin  = solarNoon + 4*hourAngle + 330;
+            const fmt = m => `${String(Math.floor(((m%1440)+1440)%1440/60)).padStart(2,'0')}:${String(Math.round(((m%1440)+1440)%1440%60)).padStart(2,'0')}`;
+            document.getElementById('rt-sunrise-display').innerText = fmt(sunriseMin);
+            document.getElementById('rt-sunset-display').innerText  = fmt(sunsetMin);
+        } catch(e) { /* silent */ }
     }
 };
 
