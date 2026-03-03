@@ -525,7 +525,7 @@ const App = {
         const b = document.querySelector(`button[onclick="App.switchView('${id}')"]`);
         if (b) b.classList.add('active');
         if (id==='music')     { Mqtt.send('get_playlists'); Mqtt.send('get_queue'); Mqtt.send('get_library'); }
-        if (id==='scheduler') { Mqtt.send('get_schedule'); Mqtt.send('get_playlists'); }
+        if (id==='scheduler') { Mqtt.send('get_schedule'); Mqtt.send('get_playlists'); Mqtt.send('get_library'); }
         if (id==='routine')   { Mqtt.send('get_routine');  Mqtt.send('get_playlists'); Mqtt.send('get_library'); Routine.previewSunriseSunset(); }
     },
     toggleLogHeight: () => {
@@ -586,7 +586,14 @@ const Mqtt = {
                 else if (topic===CONSTANTS.TOPICS.PLAYLISTS)       { DATA.playlists=d; MusicPlayer.renderPlaylists(d); }
                 else if (topic===CONSTANTS.TOPICS.SCHEDULE)        { Scheduler.renderTable(d); }
                 else if (topic===CONSTANTS.TOPICS.ROUTINE)         { Routine.renderTable(d); }
-                else if (topic===CONSTANTS.TOPICS.LIBRARY)         { DATA.libraryCache=d; MusicPlayer.searchLibrary(); }
+                else if (topic===CONSTANTS.TOPICS.LIBRARY)         {
+                    DATA.libraryCache=d; MusicPlayer.searchLibrary();
+                    // Re-populate song dropdown in scheduler/routine if currently showing song type
+                    const _st=document.getElementById('sched-type');
+                    if(_st && _st.value==='song') Scheduler.updateDeviceList();
+                    const _rt=document.getElementById('rt-type');
+                    if(_rt && _rt.value==='song') Routine.updateDeviceList();
+                }
                 else if (topic===CONSTANTS.TOPICS.QUEUE)           { MusicPlayer.renderQueue(d); }
                 else if (topic===CONSTANTS.TOPICS.PLAYLIST_DETAILS){ MusicPlayer.openEditModal(d); }
                 else if (topic===CONSTANTS.TOPICS.DEPLOY_RESULT)   { Deploy.handleResult(d); }
@@ -744,7 +751,15 @@ const Scheduler = {
         if(type==='pump'){list=DATA.pumps;sw.style.display='block';}
         else if(type==='valve'){list=[...DATA.valves,...DATA.irrigation];sw.style.display='none';}
         else if(type==='music'){list=DATA.playlists.map(p=>p.name);sw.style.display='none';}
-        else if(type==='song'){list=DATA.libraryCache.map(s=>s.description);sw.style.display='none';}
+        else if(type==='song'){
+            sw.style.display='none';
+            if(!DATA.libraryCache.length){
+                Mqtt.send('get_library');
+                sel.innerHTML='<option disabled selected>Loading songs...</option>';
+                return;
+            }
+            list=DATA.libraryCache.map(s=>s.description);
+        }
         else if(type==='vfd'){list=['own_solar','sarkari_solar'];sw.style.display='none';}
         list.forEach(item=>{const o=document.createElement('option');o.value=item;o.innerText=item.replace(/_/g,' ');sel.appendChild(o);});
     },
@@ -775,7 +790,15 @@ const Routine = {
         if(type==='vfd')   { list=['own_solar','sarkari_solar'];          sw.style.display='none'; }
         if(type==='valve') { list=[...DATA.valves,...DATA.irrigation];    sw.style.display='none'; }
         if(type==='music') { list=DATA.playlists.map(p=>p.name);         sw.style.display='none'; }
-        if(type==='song')  { list=DATA.libraryCache.map(s=>s.description);sw.style.display='none'; }
+        if(type==='song')  {
+            sw.style.display='none';
+            if(!DATA.libraryCache.length){
+                Mqtt.send('get_library');
+                sel.innerHTML='<option disabled selected>Loading songs...</option>';
+                return;
+            }
+            list=DATA.libraryCache.map(s=>s.description);
+        }
         list.forEach(item=>{const o=document.createElement('option');o.value=item;o.innerText=item.replace(/_/g,' ');sel.appendChild(o);});
     },
     toggleTimeFields: () => {
